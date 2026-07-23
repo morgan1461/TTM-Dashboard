@@ -33,6 +33,12 @@ TTM-Dashboard/
 └── .gitignore
 ```
 
+## Data Repository
+
+All data for this dashboard will be saved on the K drive in a centralized repository at the following file path:
+
+`K:\AP\TTM\Data\+ Data Repository\Dashboard\`
+
 ---
 
 ### 1-Dashboard-Module
@@ -44,6 +50,8 @@ Front end
 ### 2-Staffing-Module
 
 Back end data pull, clean, save to repo
+
+`K:\AP\TTM\Data\+ Data Repository\Dashboard\Staffing\`
 
 ---
 
