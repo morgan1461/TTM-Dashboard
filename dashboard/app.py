@@ -208,34 +208,6 @@ with ui.nav_panel("Staffing"):
 # ----------------------------------------------------------------------------------------------
 # Potential INTERNAL med center express dashboard page?
 # ----------------------------------------------------------------------------------------------
-with ui.nav_panel("Med Center Express (MC)"):
-    ui.h2("Med Center Express Dashboard")
-    ui.p("Concept dashboard.")
-
-# ----------------------------------------------------------------------------------------------
-# Maybe one page dashboard per route?
-# ----------------------------------------------------------------------------------------------
-with ui.nav_panel("Campus Connector (CC)"):
-    ui.h2("Campus Connector (CC) Dashboard")
-    ui.p("Concept dashboard.")
-
-# ----------------------------------------------------------------------------------------------
-# Maybe one page dashboard per route?
-# ----------------------------------------------------------------------------------------------
-with ui.nav_panel("Buckeye Express (BE)"):
-    ui.h2("Buckeye Express (BE) Dashboard")
-    ui.p("Concept dashboard.")
-
-# ----------------------------------------------------------------------------------------------
-# Potential On Demand dashboard page?
-# ----------------------------------------------------------------------------------------------
-with ui.nav_panel("On Demand"):
-    ui.h2("On Demand Dashboard")
-    ui.p("Concept dashboard.")
-
-# ----------------------------------------------------------------------------------------------
-# Potential On Demand dashboard page?
-# ----------------------------------------------------------------------------------------------
-with ui.nav_panel("Driver Facing"):
-    ui.h2("Copy of the public Driver Facing Dashboard")
-    ui.p("Concept dashboard.")
+with ui.nav_panel("Ridership"):
+    ui.h2("Ridership Dashboard")
+    ui.p("Under construction")

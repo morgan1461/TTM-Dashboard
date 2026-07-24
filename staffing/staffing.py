@@ -6,7 +6,8 @@ import os
 from datetime import date
 
 WORKDAY_REPORT_PATH = "K:/AP/TTM/Data/+ Data Repository/Dashboard/Staffing/Workday Reports/"
-
+# temp for manual pulling as of now
+TEMP_TRAINING_STAFFING_MASTER_PATH = "K:/AP/TTM/Data/+ Data Repository/Dashboard/Staffing/TEMP Training Staffing Master"
 # --------------------------------
 # Extraction functions
 # -------------------------------
@@ -22,6 +23,19 @@ def load_workday_report(path=WORKDAY_REPORT_PATH):
     '''
     latest_file = max(glob.glob(os.path.join(path, "*.xlsx")), key=os.path.getctime)
     return pd.read_excel(latest_file, header=1)
+
+def load_training_staffing_master():
+    '''
+    this will be the automated pull function when I get access to implement
+    '''
+    return
+
+def TEMP_load_training_staffing_master(path):
+    '''
+    
+    Args: 
+        path (str): The path to the directory containing a manually copied report
+    '''
 
 # -------------------------------
 # Transformation functions
@@ -86,29 +100,61 @@ def clean_workday_report(df):
 
     return df_cut
 
-def transform_workday_report(df):
+def transform_workday_report(df, is_student=False, is_full_time=False):
     '''
     Transforms the cleaned Workday report DataFrame into a format suitable for dashboard visualization
-
+    FUTURE: Add logs to determine if a student 3 slips through or theres any missing data???
     Args:
         df (pd.DataFrame): The cleaned Workday report DataFrame
+        is_student (bool): Flag indicating whether to filter for student employees, adds an empty CDL col, default is False
 
     Returns:
-        pd.DataFrame: The transformed Workday report DataFrame
+        pd.DataFrame: The transformed Workday report DataFrame in the format for the dashboard
     '''
-    # 
+    # Cols:
+    # id | full_name | last_name | first_name | hire_date | employee_type | cdl
+    # NOTE: Maybe split the 3 types into 3 separate dataframes?????
+    student_job_family = "Student Employee - Hourly"
+    student_job_family_group = "Students"
 
+    drop_cols = ['job_family', 'job_family_group', 'employee_status', 'fte', 'job_code']
 
-# %%
-workday_report = load_workday_report()
-# display(workday_report.head())
+    if is_student:
+        df = df[(df['job_family_group'] == student_job_family_group) & (df['job_family'] == student_job_family)]
+        df['cdl_status'] = None # will add in with other data pulled later
+    
+        #parse out irrelevant cols now and add student col
+        df['employee_type'] = 'student'
+        df.drop(columns=drop_cols, inplace=True)
+        return df
 
-cleaned_workday_report = clean_workday_report(workday_report)
+    # have to split full timers and part timers now
+    else: # either ft or pt
+        ft_employee_status = "Regular"
+        ft_fte = 1
 
-print(cleaned_workday_report.tail())
-print(cleaned_workday_report.info())
+        pt_employee_status = "Intermittent"
+        pt_fte = 0.005
 
-# cleaned_workday_report.to_csv("K:/AP/TTM/Data/+ Data Repository/Dashboard/Staffing/cleaned_workday_report.csv", index=False)
+        # fulltimers
+        if is_full_time:
+            df = df[(df['employee_status'] == ft_employee_status) & (df['fte'] == ft_fte)]
+            df['employee_type'] = 'full_time'
+            df.drop(columns=drop_cols, inplace=True)
+            return df
+
+        # part time
+        elif not is_full_time:
+            df = df[(df['employee_status'] == pt_employee_status) & (df['fte'] == pt_fte)]
+            df['employee_type'] = 'part_time'
+            df.drop(columns=drop_cols, inplace=True)
+            return df
+
+        # jic
+        else:
+            print("ERROR: No matching employee type found for the given data. Please check the input DataFrame.")
+            return pd.DataFrame()  # return an empty DataFrame if no conditions are met
+
 # -------------------------------
 # Load functions
 # -------------------------------
@@ -116,7 +162,21 @@ print(cleaned_workday_report.info())
 # -------------------------------
 # Master control
 # -------------------------------
+workday_report = load_workday_report()
+# display(workday_report.head())
 
+cleaned_workday_report = clean_workday_report(workday_report)
+
+student_df = transform_workday_report(cleaned_workday_report, is_student=True)
+full_time_df = transform_workday_report(cleaned_workday_report, is_student=False, is_full_time=True)
+part_time_df = transform_workday_report(cleaned_workday_report, is_student=False, is_full_time=False)
+
+print(f"Student Employees: {student_df.shape[0]}")
+print(student_df.head())
+print(f"Full Time Employees: {full_time_df.shape[0]}")
+print(full_time_df.head())
+print(f"Part Time Employees: {part_time_df.shape[0]}")
+print(part_time_df.head())
 # if __name__ == "__main__":
 #     # Load the latest Workday report
 #     workday_df = load_workday_report()
