@@ -1,13 +1,17 @@
-# %%
 import numpy as np
 import pandas as pd
 import glob
 import os
 from datetime import date
+from student_mapping import student_map
 
+# Paths:
 WORKDAY_REPORT_PATH = "K:/AP/TTM/Data/+ Data Repository/Dashboard/Staffing/Workday Reports/"
-# temp for manual pulling as of now
+ARCHIVED_TRAINING_STAFFING_MASTER_PATH = "K:/AP/TTM/Data/+ Data Repository/Dashboard/Staffing/Training Staffing Master archive/"
+
+# temp for manual pulling as of now , delete after access is fixed and implemented
 TEMP_TRAINING_STAFFING_MASTER_PATH = "K:/AP/TTM/Data/+ Data Repository/Dashboard/Staffing/TEMP Training Staffing Master"
+
 # --------------------------------
 # Extraction functions
 # -------------------------------
@@ -30,12 +34,25 @@ def load_training_staffing_master():
     '''
     return
 
-def TEMP_load_training_staffing_master(path):
-    '''
+def TEMP_load_training_staffing_master(path=TEMP_TRAINING_STAFFING_MASTER_PATH, archive_path=ARCHIVED_TRAINING_STAFFING_MASTER_PATH, archive=False):
+    '''Temp function to pull the student cdl data from the training and staffing master file manually placed.
+    Most recent file is taken from the folder, and an "archive" is saved in the path, this will be more relevant with the automated system, testing here
     
     Args: 
         path (str): The path to the directory containing a manually copied report
+        archive_path (str): The path to archive a copy of the training staffing master, in case of need to audit in future.
+        archive (bool): Determines if should be archived in the archive path or not, default False
+    Returns:
+        pd.DataFrame: 
     '''
+    latest_file = max(glob.glob(os.path.join(path, "*.xlsx")), key=os.path.getctime)
+    student_data = pd.read_excel(latest_file, sheet_name='Students')
+
+    # save to excel
+    if archive:
+        student_data.to_excel(archive_path + f"{str(date.today())}_archived.xlsx")
+
+    return student_data
 
 # -------------------------------
 # Transformation functions
@@ -155,6 +172,68 @@ def transform_workday_report(df, is_student=False, is_full_time=False):
             print("ERROR: No matching employee type found for the given data. Please check the input DataFrame.")
             return pd.DataFrame()  # return an empty DataFrame if no conditions are met
 
+def clean_student_training_staffing_master(df):
+    '''Clean up pertinent information from the student sheet of training and staffing master and remove unnecessary information
+    
+    Args: 
+        df (pd.DataFrame): The raw training and staffing excel sheet for students DataFrame
+    Returns:
+        pd.DataFrame: The cleaned student  DataFrame
+    '''
+    # goal: split into CDL, non-CDL, and training for CDL
+    cols_to_keep = [
+        'Name',
+        'Drivers #',
+        'Active',
+        'Permit',
+        'CDL',
+        'Hire Date',
+        'Student CDL Training Start Date'
+    ]
+
+    df = df[cols_to_keep]
+
+    df = df.rename(columns={
+        'Name': 'full_name', # hopefully will match up decently well with other df
+        'Drivers #': 'driver_num',
+        'Active': 'active',
+        'Permit': 'permit',
+        'CDL': 'cdl',
+        'Hire Date': 'hire_date',
+        'Student CDL Training Start Date': 'cdl_training_start_date',
+    })
+
+    # remove all non active student employees
+    df = df[df['active'] == 1]
+
+    return df
+
+def merge_workday_training_staffing_student(workday_df, training_staffing_master_df, student_map=student_map):
+    '''Merge the workday report with the student page of the training and staffing master report.
+    NOTE: This is going to require a lot of specific rules to ensure that everyone is accounted for, if something breaks it will likely be here.
+    NOTE: The student mapping dict will need manually updated for now each time a new student is added
+
+    Args:
+        workday df (pd.DataFrame): The cleaned workday report as pandas df
+        training_staffing_master_df (pd.DataFrame): The cleaned student training master report as a pandas df
+        student_mapping (dict): A map of the student employee names to match on each sheet, key: workday full_name, value: training_staffing master full_name
+    Returns:
+        pd.DataFrame: A raw merged dataframe with all currently counted student employees and their cdl status information
+    '''
+
+
+    return
+
+def clean_merged_student_df(df):
+    '''Takes the merged student report from both workday and traning excel sheet and cleans up for dashboard purposes.
+    
+    Args:
+        df (pd.DataFrame): The raw merged dataframe from workday and the training and staffing excel sheet
+    Returns:
+        pd.DataFrame: A cleaned version containing a concise cdl status col that will be ready for the dashboard
+    '''
+    return
+
 # -------------------------------
 # Load functions
 # -------------------------------
@@ -163,24 +242,34 @@ def transform_workday_report(df, is_student=False, is_full_time=False):
 # Master control
 # -------------------------------
 workday_report = load_workday_report()
-# display(workday_report.head())
+# # display(workday_report.head())
 
 cleaned_workday_report = clean_workday_report(workday_report)
 
 student_df = transform_workday_report(cleaned_workday_report, is_student=True)
-full_time_df = transform_workday_report(cleaned_workday_report, is_student=False, is_full_time=True)
-part_time_df = transform_workday_report(cleaned_workday_report, is_student=False, is_full_time=False)
+# full_time_df = transform_workday_report(cleaned_workday_report, is_student=False, is_full_time=True)
+# part_time_df = transform_workday_report(cleaned_workday_report, is_student=False, is_full_time=False)
 
-print(f"Student Employees: {student_df.shape[0]}")
-print(student_df.head())
-print(f"Full Time Employees: {full_time_df.shape[0]}")
-print(full_time_df.head())
-print(f"Part Time Employees: {part_time_df.shape[0]}")
-print(part_time_df.head())
+# print(f"Student Employees: {student_df.shape[0]}")
+# print(student_df.head())
+
+# print(f"Full Time Employees: {full_time_df.shape[0]}")
+# print(full_time_df.head())
+# print(f"Part Time Employees: {part_time_df.shape[0]}")
+# print(part_time_df.head())
+df = TEMP_load_training_staffing_master(archive=False)
+tsm_student_df = clean_student_training_staffing_master(df)
+# print(tsm_student_df.head())
+# print(tsm_student_df.shape)
+print(student_map)
+print(type(student_map))
+print(len(student_map))
+
+
 # if __name__ == "__main__":
 #     # Load the latest Workday report
 #     workday_df = load_workday_report()
 
 #     print(workday_df)
 
-# %%
+
