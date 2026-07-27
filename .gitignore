@@ -220,3 +220,4 @@ __marimo__/
 # other
 logs/
 test_data.csv
+.vscode
