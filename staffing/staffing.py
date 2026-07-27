@@ -3,7 +3,7 @@ import pandas as pd
 import glob
 import os
 from datetime import date
-from student_mapping import student_map
+from student_mapping import student_map, inactive_students
 
 # Paths:
 WORKDAY_REPORT_PATH = "K:/AP/TTM/Data/+ Data Repository/Dashboard/Staffing/Workday Reports/"
@@ -208,7 +208,7 @@ def clean_student_training_staffing_master(df):
 
     return df
 
-def merge_workday_training_staffing_student(workday_df, training_staffing_master_df, student_map=student_map):
+def merge_workday_training_staffing_student(workday_df, training_staffing_master_df, student_map=student_map, inactive_students=inactive_students):
     '''Merge the workday report with the student page of the training and staffing master report.
     NOTE: This is going to require a lot of specific rules to ensure that everyone is accounted for, if something breaks it will likely be here.
     NOTE: The student mapping dict will need manually updated for now each time a new student is added
@@ -217,22 +217,92 @@ def merge_workday_training_staffing_student(workday_df, training_staffing_master
         workday df (pd.DataFrame): The cleaned workday report as pandas df
         training_staffing_master_df (pd.DataFrame): The cleaned student training master report as a pandas df
         student_mapping (dict): A map of the student employee names to match on each sheet, key: workday full_name, value: training_staffing master full_name
+        inactive_students (list): A list of student employees that are no longer active, should be updated as we go
     Returns:
         pd.DataFrame: A raw merged dataframe with all currently counted student employees and their cdl status information
     '''
+    # Map workday names to TSM names; keep original when no mapping exists.
+    merged_workday_df = workday_df.copy()
+    merged_workday_df['mapped_full_name'] = (
+        merged_workday_df['full_name'].map(student_map).fillna(merged_workday_df['full_name'])
+    )
 
+    merged_df = merged_workday_df.merge(
+        training_staffing_master_df,
+        how='left',
+        left_on='mapped_full_name',
+        right_on='full_name',
+        suffixes=('_workday', '_tsm')
+    )
 
-    return
+    # For unmatched rows: drop known inactive students, log the rest for mapping updates.
+    unmatched_mask = merged_df['full_name_tsm'].isna()
+    inactive_unmatched_mask = unmatched_mask & merged_df['mapped_full_name'].isin(inactive_students)
+    merged_df = merged_df[~inactive_unmatched_mask].copy()
+
+    unresolved_names = (
+        merged_df.loc[merged_df['full_name_tsm'].isna(), 'mapped_full_name']
+        .dropna()
+        .sort_values()
+        .unique()
+        .tolist()
+    )
+
+    if unresolved_names:
+        print(
+            "WARNING: Unmatched active students found after merge. "
+            f"Please review student_map/inactive_students: {unresolved_names}"
+        )
+
+    return merged_df
 
 def clean_merged_student_df(df):
     '''Takes the merged student report from both workday and traning excel sheet and cleans up for dashboard purposes.
+    NOTE: Will need updated if we take the route of having some student be permanently non-cdl drivers
     
     Args:
         df (pd.DataFrame): The raw merged dataframe from workday and the training and staffing excel sheet
     Returns:
         pd.DataFrame: A cleaned version containing a concise cdl status col that will be ready for the dashboard
     '''
-    return
+    # ensure datatypes are correct
+    bool_cols = ['active', 'permit', 'cdl']
+    datetime_col = 'cdl_training_start_date'
+
+    df[bool_cols] = df[bool_cols].fillna(False).astype(int)
+    df[datetime_col] = pd.to_datetime(df[datetime_col], errors='coerce')
+
+    # impute cdl_status based on existing cols
+    # define conditions
+    conditions = [
+        df['cdl'] == 1,
+        (df['cdl'] == 0) & (df['cdl_training_start_date'].isna()),
+        (df['cdl'] == 0) & (df['cdl_training_start_date'].notna())
+    ]
+
+    response = [
+        'cdl',
+        'non-cdl',
+        'training-cdl'
+    ]
+
+    df['cdl_status'] = np.select(conditions, response, default='unknown')
+
+    # clean up bloat
+    cols_to_drop = ['mapped_full_name', 'full_name_tsm', 'hire_date_tsm']
+    df = df.drop(columns=cols_to_drop)
+
+    # rename and reorder cols?
+    df.rename(columns={
+        'ID': 'id',
+        'full_name_workday': 'full_name',
+        'hire_date_workday': 'hire_date',
+    })
+
+    # final: add current date to col for date data was pulled?
+    df['date'] = pd.to_datetime(date.today())
+
+    return df
 
 # -------------------------------
 # Load functions
@@ -241,6 +311,7 @@ def clean_merged_student_df(df):
 # -------------------------------
 # Master control
 # -------------------------------
+
 workday_report = load_workday_report()
 # # display(workday_report.head())
 
@@ -261,9 +332,15 @@ df = TEMP_load_training_staffing_master(archive=False)
 tsm_student_df = clean_student_training_staffing_master(df)
 # print(tsm_student_df.head())
 # print(tsm_student_df.shape)
-print(student_map)
-print(type(student_map))
-print(len(student_map))
+
+merged_df = merge_workday_training_staffing_student(student_df, tsm_student_df)
+
+# print(merged_df.shape)
+# print(merged_df.info())
+
+cleaned_df = clean_merged_student_df(merged_df)
+
+print(cleaned_df.info())
 
 
 # if __name__ == "__main__":

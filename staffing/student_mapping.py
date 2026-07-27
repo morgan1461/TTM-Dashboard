@@ -41,3 +41,9 @@ student_map = {
     'Zhenis Kenzhekey': 'Zhenis Kenzhekey',
     'Zongyang Li': 'Noah Li',
 }
+
+# this is a list of students that are no longer active
+inactive_students = [
+    'Wilson Grubb',
+    'Yunong Wu',
+]
