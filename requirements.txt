@@ -1,4 +1,8 @@
-faicons
 shiny
-seaborn
+faicons
 pandas
+numpy
+matplotlib
+seaborn
+openpyxl
+pyarrow
