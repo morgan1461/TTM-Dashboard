@@ -33,17 +33,49 @@ TTM-Dashboard/
 └── .gitignore
 ```
 
-## Data Repository
+## Data Repository Map
 
-All data for this dashboard will be saved on the K drive in a centralized repository at the following file path:
+All data for this dashboard will be saved on the K drive in a centralized repository at the following file path and structure:
 
-`K:\AP\TTM\Data\+ Data Repository\Dashboard\`
+```
+K:/AP/TTM/Data/+ Data Repository/Dashboard/
+|
+├── 📁 Staffing/
+|   ├── 📁 dashboard_data/      # Parent container for all cleaned data use in the staffing dashboard
+|   |   ├── 📁 full_time/       
+|   |   ├── 📁 part_time/   
+|   |   └── 📁 student/
+|   |
+|   ├── 📁 Workday Reports/     # The drop point for raw workday current worker detail repots to be saved to for staffing dashboard
+|   |   
+|   ├── 📁 Training Staffing Master archive/ # An archive to save copies of the training and staffing master file if enabled in the code
+|   |
+|   └── 📁 TEMP Training Staffing Master/ # A temporary place to copy traning and staffing master files to until this is
+|
+
+```
 
 ---
 
 ### 1-Dashboard-Module
 
-Front end
+The dashboard module contains the user facing web interface built using Shiny for Python (Shiny Express). This provides real time interactive data visualizations and key performance indicators powered by data that is loadedinto the central dashboard data repository.
+
+**Core Features**
+
+- 
+
+**Module Architecture**
+
+| **File** | **Function** |
+| :--- | :--- |
+| `app.py` |  |
+| `shared.py` |  |
+| `styles.css` |  |
+
+**Future Improvements and Known Issues**
+
+- 
 
 ---
 
@@ -52,6 +84,22 @@ Front end
 Back end data pull, clean, save to repo
 
 `K:\AP\TTM\Data\+ Data Repository\Dashboard\Staffing\`
+
+**Core Features**
+
+- 
+
+**Module Architecture**
+
+| **File** | **Function** |
+| :--- | :--- |
+| `staffing.py` |  |
+| `student_mapping.py` |  |
+
+**Future Improvements and Known Issues**
+
+- Training and Staffing Master file could be automatically pulled using a sharepoint API
+    - Also add the full time and part time employees to the data pulled from the training staffing master for more robust future data use
 
 ---
 
