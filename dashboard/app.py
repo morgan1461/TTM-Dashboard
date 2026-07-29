@@ -106,58 +106,80 @@ with ui.navset_bar(
             # Top 4 KPI value boxes
             with ui.layout_column_wrap(fill=False):
 
+                # Total Headcount
                 with ui.value_box(showcase=icon_svg("users")):
                     "Total Headcount"
                     @render.text
                     def count():
-                        current = filtered_df().shape[0]
-                        changes = snapshot_changes()
-                        if not changes.empty:
-                            last_change = changes.iloc[-1]
-                            total_change = last_change[['full_time', 'part_time', 'student']].sum()
-                            symbol = "↑" if total_change > 0 else "↓" if total_change < 0 else "→"
-                            color = "green" if total_change > 0 else "red" if total_change < 0 else "gray"
-                            return ui.HTML(f"{current} Employees<br/><span style='color:{color}; font-size:0.9em;'>{symbol} {abs(int(total_change))} from last snapshot</span>")
-                        return f"{current} Employees"
+                        # NOTE: This must be changed in so that it is only the NEWEST snapshot, nto reactice to filtered df
+                        current = filtered_df()[filtered_df()['date'] == filtered_df()['date'].max()].shape[0]
 
+                        # trend based on the filetered_df()
+                        print(filtered_df())
+
+                        # min date (in filtered)
+                        min_date = filtered_df()['date'].min()
+
+                        # max date (in filtered)
+                        max_date = filtered_df()['date'].max()
+
+                        min_date_count = filtered_df()[filtered_df()['date'] == min_date].shape[0]
+                        max_date_count = filtered_df()[filtered_df()['date'] == max_date].shape[0]
+
+                        trend = max_date_count - min_date_count
+
+                        return f"{current} -> ({trend:+})"
+
+                # Full time
                 with ui.value_box(showcase=icon_svg("clock", fill=FT_COLOR)):
-                    "Full Time"
+                    "Full Time Employees"
                     @render.text
                     def full_time_count():
-                        current = filtered_df()[filtered_df()['employee_type'] == 'full_time'].shape[0]
-                        changes = snapshot_changes()
-                        if not changes.empty and 'full_time' in changes.columns:
-                            ft_change = int(changes.iloc[-1]['full_time'])
-                            symbol = "↑" if ft_change > 0 else "↓" if ft_change < 0 else "→"
-                            color = "green" if ft_change > 0 else "red" if ft_change < 0 else "gray"
-                            return ui.HTML(f"{current} Employees<br/><span style='color:{color}; font-size:0.9em;'>{symbol} {abs(ft_change)} from last snapshot</span>")
-                        return f"{current} Employees"
+                        current = filtered_df()[(filtered_df()['date'] == filtered_df()['date'].max()) & (filtered_df()['employee_type'] == 'full_time')].shape[0]
 
+                        min_date = filtered_df()['date'].min()
+                        max_date = filtered_df()['date'].max()
+
+                        min_date_count = filtered_df()[(filtered_df()['date'] == min_date) & (filtered_df()['employee_type'] == 'full_time')].shape[0]
+                        max_date_count = filtered_df()[(filtered_df()['date'] == max_date) & (filtered_df()['employee_type'] == 'full_time')].shape[0]
+
+                        trend = max_date_count - min_date_count
+
+                        return f"{current} -> ({trend:+})"
+
+                # Part time
                 with ui.value_box(showcase=icon_svg("user-clock", fill=PT_COLOR)):
-                    "Part Time"
+                    "Part Time Employees"
                     @render.text
                     def part_time_count():
-                        current = filtered_df()[filtered_df()['employee_type'] == 'part_time'].shape[0]
-                        changes = snapshot_changes()
-                        if not changes.empty and 'part_time' in changes.columns:
-                            pt_change = int(changes.iloc[-1]['part_time'])
-                            symbol = "↑" if pt_change > 0 else "↓" if pt_change < 0 else "→"
-                            color = "green" if pt_change > 0 else "red" if pt_change < 0 else "gray"
-                            return ui.HTML(f"{current} Employees<br/><span style='color:{color}; font-size:0.9em;'>{symbol} {abs(pt_change)} from last snapshot</span>")
-                        return f"{current} Employees"
+                        current = filtered_df()[(filtered_df()['date'] == filtered_df()['date'].max()) & (filtered_df()['employee_type'] == 'part_time')].shape[0]
 
+                        min_date = filtered_df()['date'].min()
+                        max_date = filtered_df()['date'].max()
+
+                        min_date_count = filtered_df()[(filtered_df()['date'] == min_date) & (filtered_df()['employee_type'] == 'part_time')].shape[0]
+                        max_date_count = filtered_df()[(filtered_df()['date'] == max_date) & (filtered_df()['employee_type'] == 'part_time')].shape[0]
+
+                        trend = max_date_count - min_date_count
+
+                        return f"{current} -> ({trend:+})"
+
+                # Student
                 with ui.value_box(showcase=icon_svg("graduation-cap", fill=STUDENT_COLOR)):
-                    "Students"
+                    "Student Employees"
                     @render.text
                     def student_count():
-                        current = filtered_df()[filtered_df()['employee_type'] == 'student'].shape[0]
-                        changes = snapshot_changes()
-                        if not changes.empty and 'student' in changes.columns:
-                            s_change = int(changes.iloc[-1]['student'])
-                            symbol = "↑" if s_change > 0 else "↓" if s_change < 0 else "→"
-                            color = "green" if s_change > 0 else "red" if s_change < 0 else "gray"
-                            return ui.HTML(f"{current} Employees<br/><span style='color:{color}; font-size:0.9em;'>{symbol} {abs(s_change)} from last snapshot</span>")
-                        return f"{current} Employees"
+                        current = filtered_df()[(filtered_df()['date'] == filtered_df()['date'].max()) & (filtered_df()['employee_type'] == 'student')].shape[0]
+
+                        min_date = filtered_df()['date'].min()
+                        max_date = filtered_df()['date'].max()
+
+                        min_date_count = filtered_df()[(filtered_df()['date'] == min_date) & (filtered_df()['employee_type'] == 'student')].shape[0]
+                        max_date_count = filtered_df()[(filtered_df()['date'] == max_date) & (filtered_df()['employee_type'] == 'student')].shape[0]
+
+                        trend = max_date_count - min_date_count
+
+                        return f"{current} -> ({trend:+})"
 
         # --- Charts row ---
             with ui.layout_columns(col_widths=(8, 4)):
