@@ -1,3 +1,75 @@
 :root {
   --bslib-sidebar-main-bg: #f8f8f8;
 }
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+.bslib-page-fill {
+  padding: 0;
+}
+
+.kpi-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.kpi-main-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.kpi-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.kpi-current {
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #0f172a;
+}
+
+.kpi-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.18rem 0.5rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.kpi-pill-up {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.kpi-pill-down {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.kpi-pill-flat {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.kpi-pill-up-soft {
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.kpi-pill-down-soft {
+  background: #fef2f2;
+  color: #b91c1c;
+}
