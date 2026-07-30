@@ -44,6 +44,6 @@ student_map = {
 
 # this is a list of students that are no longer active
 inactive_students = [
-    'Wilson Grubb',
-    'Yunong Wu',
+    # 'Wilson Grubb',
+    # 'Yunong Wu',
 ]

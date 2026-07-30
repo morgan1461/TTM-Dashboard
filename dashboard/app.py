@@ -3,19 +3,26 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from datetime import date
 from pathlib import Path
-import plotly.graph_objects as go
+import plotly.graph_objects as go # type: ignore
 
 from shiny.express import ui, render, input
 from shiny import reactive
 from faicons import icon_svg
-from shinywidgets import render_widget
+from shinywidgets import render_widget # type: ignore
 
 pd.set_option("display.max_columns", None)
 
-NAVBAR_COLOR = "#090949"
-FT_COLOR = "#023047"
-PT_COLOR = "#219ebc"
-STUDENT_COLOR = "#8ecae6"
+NAVBAR_COLOR = "#0F172A"
+BG_COLOR = "#F8FAFC"
+
+TOTAL_COLOR = "#475569"
+FT_COLOR = "#1E3A8A"
+PT_COLOR = "#0284C7"
+STUDENT_COLOR = "#0F766E"
+
+STUDENT_CDL_COLOR = "#047857"
+STUDENT_TRAINING_CDL_COLOR = "#C2410C"
+STUDENT_NON_CDL_COLOR = "#B45309"
 
 
 def _clean_name_series(name_series: pd.Series) -> pd.Series:
@@ -101,8 +108,6 @@ except ImportError:
     print("Fail")
 
 staffing_df = df.copy()
-# Normalize to date-level timestamps so date range filters include full snapshot days.
-staffing_df['date'] = pd.to_datetime(staffing_df['date'], errors='coerce').dt.normalize()
 # ensure all data is imported as expected
 
 # for date in staffing_df['date'].dt.date.unique():
@@ -226,7 +231,7 @@ with ui.navset_bar(
             with ui.layout_column_wrap(fill=False):
 
                 # Total Headcount
-                with ui.value_box(showcase=icon_svg("users")):
+                with ui.value_box(showcase=icon_svg("users").add_style(f"fill: {TOTAL_COLOR} !important;")):
                     "Total Headcount"
                     @render.ui
                     def count():
@@ -264,7 +269,7 @@ with ui.navset_bar(
                         return _kpi_summary_ui(current, trend, gained_count, lost_count)
 
                 # Full time
-                with ui.value_box(showcase=icon_svg("clock", fill=FT_COLOR)):
+                with ui.value_box(showcase=icon_svg("clock").add_style(f"fill: {FT_COLOR} !important;")):
                     "Full Time Employees"
                     @render.ui
                     def full_time_count():
@@ -302,7 +307,7 @@ with ui.navset_bar(
                         return _kpi_summary_ui(current, trend, gained_count, lost_count)
 
                 # Part time
-                with ui.value_box(showcase=icon_svg("user-clock", fill=PT_COLOR)):
+                with ui.value_box(showcase=icon_svg("user-clock").add_style(f"fill: {PT_COLOR} !important;")):
                     "Part Time Employees"
                     @render.ui
                     def part_time_count():
@@ -340,7 +345,7 @@ with ui.navset_bar(
                         return _kpi_summary_ui(current, trend, gained_count, lost_count)
 
                 # Student
-                with ui.value_box(showcase=icon_svg("graduation-cap", fill=STUDENT_COLOR)):
+                with ui.value_box(showcase=icon_svg("graduation-cap").add_style(f"fill: {STUDENT_COLOR} !important;")):
                     "Student Employees"
                     @render.ui
                     def student_count():
@@ -501,9 +506,9 @@ with ui.navset_bar(
                             "training-cdl": "CDL Training",
                         }
                         colors_map = {
-                            "cdl": FT_COLOR,
-                            "non-cdl": PT_COLOR,
-                            "training-cdl": STUDENT_COLOR,
+                            "cdl": STUDENT_CDL_COLOR,
+                            "non-cdl": STUDENT_NON_CDL_COLOR,
+                            "training-cdl": STUDENT_TRAINING_CDL_COLOR,
                         }
 
                         status_order = ["cdl", "non-cdl", "training-cdl"]
@@ -597,6 +602,16 @@ with ui.navset_bar(
             ui.p("Concept")
 
     ui.nav_spacer()
+
+    with ui.nav_control():
+        with ui.tooltip(placement="bottom"):
+            ui.tags.button(
+                icon_svg("circle-info"),
+                " About",
+                class_="nav-link",
+                style="display: inline-flex; align-items: center; gap: 6px; color: #F8FAFC !important; border: none; text-decoration: none; padding: 0.5rem;",
+            )
+            "Developed by Clay Morgan for The Ohio State University Transportation and Traffic Management. Please reach out to Morgan.1461@osu.edu if errors or problems are found."
 
     with ui.nav_control():
         ui.a(

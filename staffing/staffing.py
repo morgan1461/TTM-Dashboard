@@ -13,6 +13,11 @@ STAFFING_DATA_REPOSITORY_PATH = 'K:/AP/TTM/Data/+ Data Repository/Dashboard/Staf
 # temp for manual pulling as of now , delete after access is fixed and implemented
 TEMP_TRAINING_STAFFING_MASTER_PATH = "K:/AP/TTM/Data/+ Data Repository/Dashboard/Staffing/TEMP Training Staffing Master"
 
+# date variable for running historical data for now and abs path to file
+file_name = "current_worker_detail_report_07_19_2026"
+HIST_PATH = f"K:/AP/TTM/Data/+ Data Repository/Dashboard/Staffing/Workday Reports/{file_name}.xlsx"
+DATE = pd.to_datetime("7/19/2026").date()
+
 # --------------------------------
 # Extraction functions
 # -------------------------------
@@ -28,6 +33,17 @@ def load_workday_report(path=WORKDAY_REPORT_PATH):
     '''
     latest_file = max(glob.glob(os.path.join(path, "*.xlsx")), key=os.path.getctime)
     return pd.read_excel(latest_file, header=1)
+
+def load_workday_report_from_path(file_path):
+    '''Loads a workday report from a specified file path
+
+    Args:
+        file_path (str): The full path to the Workday report file
+    
+    Returns:
+        pd.DataFrame: The Workday report as a pandas DataFrame
+    '''
+    return pd.read_excel(file_path, header=1)
 
 def load_training_staffing_master():
     '''
@@ -118,7 +134,7 @@ def clean_workday_report(df):
 
     return df_cut
 
-def transform_workday_report(df, is_student=False, is_full_time=False):
+def transform_workday_report(df, is_student=False, is_full_time=False, snapshot_date=DATE):
     '''
     Transforms the cleaned Workday report DataFrame into a format suitable for dashboard visualization
     FUTURE: Add logs to determine if a student 3 slips through or theres any missing data???
@@ -145,6 +161,7 @@ def transform_workday_report(df, is_student=False, is_full_time=False):
     
         #parse out irrelevant cols now and add student col
         df['employee_type'] = 'student'
+        df['date'] = pd.to_datetime(snapshot_date)
         df.drop(columns=drop_cols, inplace=True)
         return df
 
@@ -160,6 +177,7 @@ def transform_workday_report(df, is_student=False, is_full_time=False):
         if is_full_time:
             df = df[(df['employee_status'] == ft_employee_status) & (df['fte'] == ft_fte)]
             df['employee_type'] = 'full_time'
+            df['date'] = pd.to_datetime(snapshot_date)
             df.drop(columns=drop_cols, inplace=True)
             return df
 
@@ -167,6 +185,7 @@ def transform_workday_report(df, is_student=False, is_full_time=False):
         elif not is_full_time:
             df = df[(df['employee_status'] == pt_employee_status) & (df['fte'] == pt_fte)]
             df['employee_type'] = 'part_time'
+            df['date'] = pd.to_datetime(snapshot_date)
             df.drop(columns=drop_cols, inplace=True)
             return df
 
@@ -210,6 +229,10 @@ def clean_student_training_staffing_master(df):
     df = df[df['active'] == 1]
 
     return df
+
+# Potential problem here where will need to manually flag students in historic data
+#
+#
 
 def merge_workday_training_staffing_student(workday_df, training_staffing_master_df, student_map=student_map, inactive_students=inactive_students):
     '''Merge the workday report with the student page of the training and staffing master report.
@@ -299,10 +322,10 @@ def clean_merged_student_df(df):
     df.rename(columns={
         'full_name_workday': 'full_name',
         'hire_date_workday': 'hire_date',
-    })
+    }, inplace=True)
 
     # final: add current date to col for date data was pulled?
-    df['date'] = pd.to_datetime(date.today())
+    df['date'] = pd.to_datetime(DATE)
 
     return df
 
@@ -310,7 +333,7 @@ def clean_merged_student_df(df):
 # Load functions
 # -------------------------------
 
-def save_data(df, is_full_time=False, is_part_time=False, is_student=False, data_repo_path=STAFFING_DATA_REPOSITORY_PATH):
+def save_data(df, is_full_time=False, is_part_time=False, is_student=False, data_repo_path=STAFFING_DATA_REPOSITORY_PATH, date=date.today()):
     '''Save the data to the central repository containing the staffing data for the dashboard
     
     Args:
@@ -319,16 +342,17 @@ def save_data(df, is_full_time=False, is_part_time=False, is_student=False, data
         is_part_time (boolean): Save to part time
         is_student (boolean): Save to student
         data_repo_path (string): The path to the central repository containing staffing data for the dashboard
+        date (datetime.date): The date the data is pulled, default is today
     Returns:
         None
     '''
     # NOTE: Add conditional checking to ensure not "{double booked"
     if is_full_time:
-        df.to_csv(f'{data_repo_path}/full_time/{str(date.today())}_full_time.csv')
+        df.to_csv(f'{data_repo_path}full_time/{str(date)}_full_time.csv', index=False)
     elif is_part_time:
-        df.to_csv(f'{data_repo_path}/part_time/{str(date.today())}_part_time.csv')
+        df.to_csv(f'{data_repo_path}part_time/{str(date)}_part_time.csv', index=False)
     elif is_student:
-        df.to_csv(f'{data_repo_path}/student/{str(date.today())}_student.csv')
+        df.to_csv(f'{data_repo_path}student/{str(date)}_student.csv', index=False)
     else:
         print('Failure: ensure that at least one bool expression is checked.')
 
@@ -341,24 +365,39 @@ def save_data(df, is_full_time=False, is_part_time=False, is_student=False, data
 if __name__ == "__main__":
 
     # STEP 1: Extract raw data from the 2 sources
-    workday_report = load_workday_report()
-    training_staffing_master_report = TEMP_load_training_staffing_master(archive=True) # EDIT ONCE THIS IS AUTOMATED
+    workday_report = load_workday_report_from_path(HIST_PATH) # NOTE: temporary
+    training_staffing_master_report = TEMP_load_training_staffing_master(archive=False) # EDIT ONCE THIS IS AUTOMATED
+    print("Data extraction complete.")
 
     # STEP 2: Transform and clean the raw data
     cleaned_workday_report = clean_workday_report(workday_report)
+    print("Workday report cleaned.")
 
     # extract ft, pt, students
     full_time_df = transform_workday_report(cleaned_workday_report, is_full_time=True)
+    print("Full-time report transformed.")
     part_time_df = transform_workday_report(cleaned_workday_report)
+    print("Part-time report transformed.")
     workday_student_df = transform_workday_report(cleaned_workday_report, is_student=True)
+    print("Workday student report transformed.")
 
     # traning staffing master for additional student cols
     cleaned_training_staffing_master_report = clean_student_training_staffing_master(training_staffing_master_report)
+    print("Training staffing master report cleaned.")
+
     # merge these 2 dfs for students
     merged_student_df = merge_workday_training_staffing_student(workday_student_df, cleaned_training_staffing_master_report)
+    print("Merged student report")
+    print(merged_student_df.head())
+    print(merged_student_df.shape)
+
     cleaned_merged_student_df = clean_merged_student_df(merged_student_df)
+    print("Cleaned merged student report")
+    print(cleaned_merged_student_df.head())
+    print(cleaned_merged_student_df.shape)
 
     # STEP 3: Load the data to the centralized repo
-    save_data(full_time_df, is_full_time=True)
-    save_data(part_time_df, is_part_time=True)
-    save_data(cleaned_merged_student_df, is_student=True)
+    save_data(full_time_df, is_full_time=True, date=DATE)
+    save_data(part_time_df, is_part_time=True, date=DATE)
+    save_data(cleaned_merged_student_df, is_student=True, date=DATE)
+    print("Data saved to central repository with date: " + str(DATE))
