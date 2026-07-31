@@ -1,4 +1,4 @@
-import pandas as pd
+import pandas as pd 
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from datetime import date
@@ -585,21 +585,32 @@ with ui.navset_bar(
             #             return fig
 
     # ----------------------------------------------------------------------------------
-    # Page 2: Ridership
+    # Page 2: 
+    # ----------------------------------------------------------------------------------
+
+    with ui.nav_panel("Student Trends", icon=icon_svg("chart-simple")):
+        ui.p("Under Construction")
+
+    # ----------------------------------------------------------------------------------
+    # Page 3: Ridership
     # ----------------------------------------------------------------------------------
     with ui.nav_panel("Ridership", icon=icon_svg("chart-line")):
         ui.p("Under Construction")
 
     # ----------------------------------------------------------------------------------
-    # Page 3: Reports
+    # Page X: Reports
     # ----------------------------------------------------------------------------------
-    with ui.nav_menu("Reports", icon=icon_svg("file-lines")):
-        with ui.nav_panel("Financial Breakdown"):
-            ui.p("Concept")
-        with ui.nav_panel("On-Demand Breakdown"):
-            ui.p("Concept")
-        with ui.nav_panel("Charter Breakdown"):
-            ui.p("Concept")
+    # with ui.nav_menu("Reports", icon=icon_svg("file-lines")):
+    #     with ui.nav_panel("Financial Breakdown"):
+    #         ui.p("Concept")
+    #     with ui.nav_panel("On-Demand Breakdown"):
+    #         ui.p("Concept")
+    #     with ui.nav_panel("Charter Breakdown"):
+    #         ui.p("Concept")
+
+    # ----------------------------------------------------------------------------------
+    # End of the nav bar
+    # ----------------------------------------------------------------------------------
 
     ui.nav_spacer()
 
