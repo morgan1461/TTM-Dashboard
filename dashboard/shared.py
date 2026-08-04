@@ -130,4 +130,49 @@ student_df = load_directory(STUDENT_DIR)
 student_df['employee_type'] = 'student'  # Ensure employee_type is set for student data
 
 # Combined dataset for dashboard app
-df = pd.concat([full_time_df, part_time_df, student_df], ignore_index=True)
+staffing_df = pd.concat([full_time_df, part_time_df, student_df], ignore_index=True)
+
+
+# student trends path
+STUDENT_TRENDS_DIR = DATA_REPO / "Student Trends" / "trends"
+
+
+def load_latest_file(directory: Path) -> pd.DataFrame:
+    """
+    Scans a directory for supported data files and reads only the most recent file
+    based on the extracted snapshot date or file modification time.
+    """
+    if not directory.exists():
+        print(f"Warning: Directory does not exist: '{directory}'")
+        return pd.DataFrame()
+
+    # Find all supported files (excluding temporary/hidden files)
+    files = [
+        f
+        for f in directory.iterdir()
+        if f.is_file()
+        and not f.name.startswith("~")
+        and not f.name.startswith(".")
+        and f.suffix.lower() in SUPPORTED_EXTENSIONS
+    ]
+
+    if not files:
+        print(f"Warning: No valid data files found in '{directory}'")
+        return pd.DataFrame()
+
+    # Find the latest file using your existing date extraction logic
+    latest_file = max(files, key=_extract_snapshot_date)
+    print(f"Loading latest student trends file: {latest_file.name}")
+
+    # Read and normalize the single latest dataframe
+    frame = _read_file(latest_file)
+    if not frame.empty:
+        frame = _normalize_staffing_frame(frame, latest_file)
+
+    return frame
+
+
+# ------------------------------------------------------------------
+# LOAD LATEST STUDENT TRENDS DATAFRAME
+# ------------------------------------------------------------------
+student_trends_df = load_latest_file(STUDENT_TRENDS_DIR)
