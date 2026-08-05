@@ -5,10 +5,29 @@
 body {
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
 }
 
 .bslib-page-fill {
-  padding: 0;
+  padding: 0 0 2rem 0;
+  overflow: auto;
+}
+
+.bslib-card,
+.card {
+  overflow: visible;
+  min-height: auto;
+}
+
+.bslib-card > .card-body,
+.card-body {
+  overflow: visible;
+}
+
+.plotly.html-widget,
+.plotly-graph-div {
+  max-width: 100%;
+  overflow: visible !important;
 }
 
 .kpi-stack {
