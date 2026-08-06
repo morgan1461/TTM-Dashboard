@@ -54,6 +54,8 @@ def load_training_staffing_master():
 def TEMP_load_training_staffing_master(path=TEMP_TRAINING_STAFFING_MASTER_PATH, archive_path=ARCHIVED_TRAINING_STAFFING_MASTER_PATH, archive=False):
     '''Temp function to pull the student cdl data from the training and staffing master file manually placed.
     Most recent file is taken from the folder, and an "archive" is saved in the path, this will be more relevant with the automated system, testing here
+
+    UPDATE (8-6-2026): Employee ID has been added to the training and staffing master file so that this can be used to map together going forward.
     
     Args: 
         path (str): The path to the directory containing a manually copied report
@@ -196,6 +198,8 @@ def transform_workday_report(df, is_student=False, is_full_time=False, snapshot_
 
 def clean_student_training_staffing_master(df):
     '''Clean up pertinent information from the student sheet of training and staffing master and remove unnecessary information
+
+    UPDATE (8-6-2026): Employee ID has been added to the training and staffing master file so that this can be used to map together going forward.
     
     Args: 
         df (pd.DataFrame): The raw training and staffing excel sheet for students DataFrame
@@ -205,18 +209,20 @@ def clean_student_training_staffing_master(df):
     # goal: split into CDL, non-CDL, and training for CDL
     cols_to_keep = [
         'Name',
+        'Employee ID',
         'Drivers #',
         'Active',
         'Permit',
         'CDL',
         'Hire Date',
-        'Student CDL Training Start Date'
+        'Student CDL Training Start Date',
     ]
 
     df = df[cols_to_keep]
 
     df = df.rename(columns={
-        'Name': 'full_name', # hopefully will match up decently well with other df
+        'Name': 'full_name',
+        'Employee ID': 'employee_id',
         'Drivers #': 'driver_num',
         'Active': 'active',
         'Permit': 'permit',
@@ -239,6 +245,8 @@ def merge_workday_training_staffing_student(workday_df, training_staffing_master
     NOTE: This is going to require a lot of specific rules to ensure that everyone is accounted for, if something breaks it will likely be here.
     NOTE: The student mapping dict will need manually updated for now each time a new student is added
 
+    UPDATE (8-6-2026): Employee ID has been added to the training and staffing master file, this can be used to map together going forward.
+
     Args:
         workday df (pd.DataFrame): The cleaned workday report as pandas df
         training_staffing_master_df (pd.DataFrame): The cleaned student training master report as a pandas df
@@ -249,36 +257,14 @@ def merge_workday_training_staffing_student(workday_df, training_staffing_master
     '''
     # Map workday names to TSM names; keep original when no mapping exists.
     merged_workday_df = workday_df.copy()
-    merged_workday_df['mapped_full_name'] = (
-        merged_workday_df['full_name'].map(student_map).fillna(merged_workday_df['full_name'])
-    )
+
 
     merged_df = merged_workday_df.merge(
         training_staffing_master_df,
         how='left',
-        left_on='mapped_full_name',
-        right_on='full_name',
-        suffixes=('_workday', '_tsm')
+        left_on='ID',
+        right_on='employee_id'
     )
-
-    # For unmatched rows: drop known inactive students, log the rest for mapping updates.
-    unmatched_mask = merged_df['full_name_tsm'].isna()
-    inactive_unmatched_mask = unmatched_mask & merged_df['mapped_full_name'].isin(inactive_students)
-    merged_df = merged_df[~inactive_unmatched_mask].copy()
-
-    unresolved_names = (
-        merged_df.loc[merged_df['full_name_tsm'].isna(), 'mapped_full_name']
-        .dropna()
-        .sort_values()
-        .unique()
-        .tolist()
-    )
-
-    if unresolved_names:
-        print(
-            "WARNING: Unmatched active students found after merge. "
-            f"Please review student_map/inactive_students: {unresolved_names}"
-        )
 
     return merged_df
 
@@ -392,21 +378,26 @@ if __name__ == "__main__":
     cleaned_training_staffing_master_report = clean_student_training_staffing_master(training_staffing_master_report)
     print("Training staffing master report cleaned.")
 
+    # print(workday_student_df.head())
+    # print(workday_student_df.info())
+    # print(cleaned_training_staffing_master_report.head())
+    # print(cleaned_training_staffing_master_report.info())
+
     # merge these 2 dfs for students
     merged_student_df = merge_workday_training_staffing_student(workday_student_df, cleaned_training_staffing_master_report)
     print("Merged student report")
-    # print(merged_student_df.head())
-    # print(merged_student_df.shape)
+    print(merged_student_df.head())
+    print(merged_student_df.shape)
 
-    cleaned_merged_student_df = clean_merged_student_df(merged_student_df)
+    # cleaned_merged_student_df = clean_merged_student_df(merged_student_df)
     # print("Cleaned merged student report")
     # print(cleaned_merged_student_df.head())
     # print(cleaned_merged_student_df.shape)
 
     # STEP 3: Load the data to the centralized repo
-    save_data(full_time_df, is_full_time=True, date=DATE)
-    save_data(part_time_df, is_part_time=True, date=DATE)
-    save_data(cleaned_merged_student_df, is_student=True, date=DATE)
-    print("Data saved to central repository with date: " + str(DATE))
+    # save_data(full_time_df, is_full_time=True, date=DATE)
+    # save_data(part_time_df, is_part_time=True, date=DATE)
+    # save_data(cleaned_merged_student_df, is_student=True, date=DATE)
+    # print("Data saved to central repository with date: " + str(DATE))
 
-    training_staffing_master_report.to_csv(f'tsm_trending_list.csv', index=False)
+    # training_staffing_master_report.to_csv(f'tsm_trending_list.csv', index=False)
