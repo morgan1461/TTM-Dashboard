@@ -572,123 +572,123 @@ with ui.navset_bar(
                         return fig
 
                 # Full time staffing retention metrics
-                with ui.card(full_screen=True):
-                    ui.card_header("Staff Retention")
-                    @render_widget
-                    def retention():
-                        df_f = filtered_df().copy()
+                # with ui.card(full_screen=True):
+                #     ui.card_header("Staff Retention")
+                #     @render_widget
+                #     def retention():
+                #         df_f = filtered_df().copy()
                         
-                        # 1. Failsafe checks
-                        if df_f.empty or 'hire_date' not in df_f.columns:
-                            fig = go.Figure()
-                            fig.add_annotation(
-                                text="No retention data available", 
-                                xref="paper", yref="paper", 
-                                x=0.5, y=0.5, showarrow=False
-                            )
-                            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                            return fig
+                #         # 1. Failsafe checks
+                #         if df_f.empty or 'hire_date' not in df_f.columns:
+                #             fig = go.Figure()
+                #             fig.add_annotation(
+                #                 text="No retention data available", 
+                #                 xref="paper", yref="paper", 
+                #                 x=0.5, y=0.5, showarrow=False
+                #             )
+                #             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                #             return fig
 
-                        # 2. Filter for only Full Time employees in the most recent snapshot
-                        max_date = df_f['date'].max()
-                        ft_df = df_f[df_f['date'] == max_date].copy()
+                #         # 2. Filter for only Full Time employees in the most recent snapshot
+                #         max_date = df_f['date'].max()
+                #         ft_df = df_f[df_f['date'] == max_date].copy()
                         
-                        if ft_df.empty:
-                            fig = go.Figure()
-                            fig.add_annotation(text="No full-time staff in current snapshot", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
-                            return fig
+                #         if ft_df.empty:
+                #             fig = go.Figure()
+                #             fig.add_annotation(text="No full-time staff in current snapshot", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+                #             return fig
 
-                        # 3. Calculate Tenure dynamically
-                        # Ensure dates are datetime objects
-                        ft_df['hire_date'] = pd.to_datetime(ft_df['hire_date'], errors='coerce')
-                        ft_df['date'] = pd.to_datetime(ft_df['date'])
+                #         # 3. Calculate Tenure dynamically
+                #         # Ensure dates are datetime objects
+                #         ft_df['hire_date'] = pd.to_datetime(ft_df['hire_date'], errors='coerce')
+                #         ft_df['date'] = pd.to_datetime(ft_df['date'])
                         
-                        # Calculate days between hire date and snapshot date
-                        ft_df['tenure_days'] = (ft_df['date'] - ft_df['hire_date']).dt.days
+                #         # Calculate days between hire date and snapshot date
+                #         ft_df['tenure_days'] = (ft_df['date'] - ft_df['hire_date']).dt.days
                         
-                        # 4. Create Tenure Buckets
-                        def categorize_tenure(days):
-                            if pd.isna(days):
-                                return 'Unknown'
-                            elif days < 365:
-                                return '<1 Year'
-                            elif days < 1825: # 5 years * 365
-                                return '1-5 Years'
-                            else:
-                                return '5+ Years'
+                #         # 4. Create Tenure Buckets
+                #         def categorize_tenure(days):
+                #             if pd.isna(days):
+                #                 return 'Unknown'
+                #             elif days < 365:
+                #                 return '<1 Year'
+                #             elif days < 1825: # 5 years * 365
+                #                 return '1-5 Years'
+                #             else:
+                #                 return '5+ Years'
                                 
-                        ft_df['Tenure_Bucket'] = ft_df['tenure_days'].apply(categorize_tenure)
+                #         ft_df['Tenure_Bucket'] = ft_df['tenure_days'].apply(categorize_tenure)
                         
-                        # 5. Aggregate the counts and calculate percentages
-                        bucket_counts = ft_df['Tenure_Bucket'].value_counts()
-                        total_staff = len(ft_df)
+                #         # 5. Aggregate the counts and calculate percentages
+                #         bucket_counts = ft_df['Tenure_Bucket'].value_counts()
+                #         total_staff = len(ft_df)
                         
-                        # Calculate percentages safely
-                        pct_under_1 = (bucket_counts.get('<1 Year', 0) / total_staff) * 100 if total_staff > 0 else 0
-                        pct_1_to_5 = (bucket_counts.get('1-5 Years', 0) / total_staff) * 100 if total_staff > 0 else 0
-                        pct_5_plus = (bucket_counts.get('5+ Years', 0) / total_staff) * 100 if total_staff > 0 else 0
+                #         # Calculate percentages safely
+                #         pct_under_1 = (bucket_counts.get('<1 Year', 0) / total_staff) * 100 if total_staff > 0 else 0
+                #         pct_1_to_5 = (bucket_counts.get('1-5 Years', 0) / total_staff) * 100 if total_staff > 0 else 0
+                #         pct_5_plus = (bucket_counts.get('5+ Years', 0) / total_staff) * 100 if total_staff > 0 else 0
 
-                        # Define sequential colors
-                        colors = {
-                            '<1 Year': '#9ecae1',   # Light blue
-                            '1-5 Years': '#3182bd', # Medium blue
-                            '5+ Years': '#08519c'   # Dark blue
-                        }
+                #         # Define sequential colors
+                #         colors = {
+                #             '<1 Year': '#9ecae1',   # Light blue
+                #             '1-5 Years': '#3182bd', # Medium blue
+                #             '5+ Years': '#08519c'   # Dark blue
+                #         }
 
-                        # 6. Build the Plotly figure
-                        fig = go.Figure()
+                #         # 6. Build the Plotly figure
+                #         fig = go.Figure()
 
-                        # Add traces for each bucket (Using "Overall" as the X-axis label)
-                        fig.add_trace(go.Bar(
-                            x=["Overall"], 
-                            y=[pct_under_1], 
-                            name='<1 Year', 
-                            marker_color=colors['<1 Year'],
-                            hovertemplate="<b>%{x}</b><br><1 Year: %{y:.1f}%<extra></extra>"
-                        ))
+                #         # Add traces for each bucket (Using "Overall" as the X-axis label)
+                #         fig.add_trace(go.Bar(
+                #             x=["Overall"], 
+                #             y=[pct_under_1], 
+                #             name='<1 Year', 
+                #             marker_color=colors['<1 Year'],
+                #             hovertemplate="<b>%{x}</b><br><1 Year: %{y:.1f}%<extra></extra>"
+                #         ))
                         
-                        fig.add_trace(go.Bar(
-                            x=["Overall"], 
-                            y=[pct_1_to_5], 
-                            name='1-5 Years', 
-                            marker_color=colors['1-5 Years'],
-                            hovertemplate="<b>%{x}</b><br>1-5 Years: %{y:.1f}%<extra></extra>"
-                        ))
+                #         fig.add_trace(go.Bar(
+                #             x=["Overall"], 
+                #             y=[pct_1_to_5], 
+                #             name='1-5 Years', 
+                #             marker_color=colors['1-5 Years'],
+                #             hovertemplate="<b>%{x}</b><br>1-5 Years: %{y:.1f}%<extra></extra>"
+                #         ))
                         
-                        fig.add_trace(go.Bar(
-                            x=["Overall"], 
-                            y=[pct_5_plus], 
-                            name='5+ Years', 
-                            marker_color=colors['5+ Years'],
-                            hovertemplate="<b>%{x}</b><br>5+ Years: %{y:.1f}%<extra></extra>"
-                        ))
+                #         fig.add_trace(go.Bar(
+                #             x=["Overall"], 
+                #             y=[pct_5_plus], 
+                #             name='5+ Years', 
+                #             marker_color=colors['5+ Years'],
+                #             hovertemplate="<b>%{x}</b><br>5+ Years: %{y:.1f}%<extra></extra>"
+                #         ))
 
-                        # Apply layout styling
-                        fig.update_layout(
-                            autosize=True,
-                            barmode='stack',
-                            height=470,
-                            showlegend=True,
-                            legend=dict(
-                                orientation='h',
-                                yanchor='bottom',
-                                y=1.03,
-                                xanchor='left',
-                                x=0,
-                            ),
-                            margin=dict(l=20, r=20, t=36, b=20),
-                            paper_bgcolor='rgba(0,0,0,0)',
-                            plot_bgcolor='rgba(0,0,0,0)',
-                            font=dict(size=11, color='#334155'),
-                            yaxis=dict(
-                                title="Percentage of Staff (%)",
-                                range=[0, 100],
-                                showgrid=True,
-                                gridcolor='#e2e8f0'
-                            )
-                        )
+                #         # Apply layout styling
+                #         fig.update_layout(
+                #             autosize=True,
+                #             barmode='stack',
+                #             height=470,
+                #             showlegend=True,
+                #             legend=dict(
+                #                 orientation='h',
+                #                 yanchor='bottom',
+                #                 y=1.03,
+                #                 xanchor='left',
+                #                 x=0,
+                #             ),
+                #             margin=dict(l=20, r=20, t=36, b=20),
+                #             paper_bgcolor='rgba(0,0,0,0)',
+                #             plot_bgcolor='rgba(0,0,0,0)',
+                #             font=dict(size=11, color='#334155'),
+                #             yaxis=dict(
+                #                 title="Percentage of Staff (%)",
+                #                 range=[0, 100],
+                #                 showgrid=True,
+                #                 gridcolor='#e2e8f0'
+                #             )
+                #         )
 
-                        return fig
+                #         return fig
 
             # # --- Gains/Losses Trend Chart (below staffing trend) ---
             # with ui.card():
@@ -702,7 +702,7 @@ with ui.navset_bar(
             #             fig.add_annotation(
             #                 text="Only one snapshot available. More data needed to show trends.",
             #                 xref="paper", yref="paper", x=0.5, y=0.5,
-            #                 showarrow=False, font=dict(size=12, color='#999')
+            #                 showarrow=False, font=dict(size=12, color='#999').max
             #             )
             #             fig.update_layout(height=400, xaxis_visible=False, yaxis_visible=False)
             #             fig.update_layout(
@@ -718,7 +718,8 @@ with ui.navset_bar(
     # ----------------------------------------------------------------------------------
 
     with ui.nav_panel("Student Trends", icon=icon_svg("chart-simple")):
-
+        ui.p("Under Construction")
+        '''
         ui.p("Note: this counts student supervisors as to why the numbers do not add up from previous staffing page")
         
         # --- Reactive dataframe (No Date Filtering) ---
@@ -745,7 +746,7 @@ with ui.navset_bar(
                     return ui.tags.div(ui.tags.span(str(active_count), class_="kpi-current"))
                     
             with ui.value_box(showcase=icon_svg("id-card").add_style(f"fill: {STUDENT_NON_CDL_COLOR} !important;")):
-                "Active Students w/ Permit"
+                "Students with Permit"
                 @render.ui
                 def permit_students_kpi():
                     df_f = student_snapshot_df()
@@ -756,7 +757,7 @@ with ui.navset_bar(
                     return ui.tags.div(ui.tags.span(str(permit_count), class_="kpi-current"))
                     
             with ui.value_box(showcase=icon_svg("truck").add_style(f"fill: {STUDENT_CDL_COLOR} !important;")):
-                "Active Students w/ CDL"
+                "Students with CDL"
                 @render.ui
                 def cdl_students_kpi():
                     df_f = student_snapshot_df()
@@ -766,20 +767,20 @@ with ui.navset_bar(
                     cdl_count = df_f[(df_f['active'] == 1) & (df_f['cdl'] == True)].shape[0]
                     return ui.tags.div(ui.tags.span(str(cdl_count), class_="kpi-current"))
                     
-            with ui.value_box(showcase=icon_svg("stopwatch").add_style(f"fill: {TOTAL_COLOR} !important;")):
-                "Avg. Total Training Days"
-                @render.ui
-                def avg_training_days_kpi():
-                    df_f = student_snapshot_df()
-                    if df_f.empty or 'total_training_days' not in df_f.columns:
-                        return ui.tags.div(ui.tags.span("N/A", class_="kpi-current"))
+            # with ui.value_box(showcase=icon_svg("stopwatch").add_style(f"fill: {TOTAL_COLOR} !important;")):
+            #     "Avg. Total Training Days"
+            #     @render.ui
+            #     def avg_training_days_kpi():
+            #         df_f = student_snapshot_df()
+            #         if df_f.empty or 'total_training_days' not in df_f.columns:
+            #             return ui.tags.div(ui.tags.span("N/A", class_="kpi-current"))
                     
-                    avg_days = df_f['total_training_days'].mean()
-                    val = f"{avg_days:.1f}" if pd.notna(avg_days) else "N/A"
-                    return ui.tags.div(
-                        ui.tags.span(val, class_="kpi-current"),
-                        ui.tags.span(" days", style="font-size: 1rem; color: #64748b; margin-left: 0.3rem;")
-                    )
+            #         avg_days = df_f['total_training_days'].mean()
+            #         val = f"{avg_days:.1f}" if pd.notna(avg_days) else "N/A"
+            #         return ui.tags.div(
+            #             ui.tags.span(val, class_="kpi-current"),
+            #             ui.tags.span(" days", style="font-size: 1rem; color: #64748b; margin-left: 0.3rem;")
+            #         )
 
         # --- Charts Row ---
         with ui.layout_columns(col_widths=(7, 5), gap="2rem"):
@@ -794,11 +795,17 @@ with ui.navset_bar(
                         fig.add_annotation(text="No data", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
                         return fig
                         
-                    # Extract pipeline based on successful milestones recorded in the dataset
-                    orientation = df_f['orientation_date'].notna().sum() if 'orientation_date' in df_f.columns else 0
-                    permit = df_f['student_cdl_permit_date'].notna().sum() if 'student_cdl_permit_date' in df_f.columns else 0
-                    training = df_f['cdl_training_start_date'].notna().sum() if 'cdl_training_start_date' in df_f.columns else 0
-                    cdl = df_f['student_cdl_date'].notna().sum() if 'student_cdl_date' in df_f.columns else 0
+                    # Count students by the earliest milestone they have reached, without counting
+                    # anyone who has already advanced to a later stage.
+                    has_orientation = df_f['orientation_date'].notna() if 'orientation_date' in df_f.columns else pd.Series(False, index=df_f.index)
+                    has_permit = df_f['student_cdl_permit_date'].notna() if 'student_cdl_permit_date' in df_f.columns else pd.Series(False, index=df_f.index)
+                    has_training = df_f['cdl_training_start_date'].notna() if 'cdl_training_start_date' in df_f.columns else pd.Series(False, index=df_f.index)
+                    has_cdl = df_f['student_cdl_date'].notna() if 'student_cdl_date' in df_f.columns else pd.Series(False, index=df_f.index)
+
+                    orientation = int((has_orientation & ~has_permit & ~has_training & ~has_cdl).sum())
+                    permit = int((has_permit & ~has_training & ~has_cdl).sum())
+                    training = int((has_training & ~has_cdl).sum())
+                    cdl = int(has_cdl.sum())
                     
                     stages = ["Orientation", "Permit Acquired", "CDL Training", "CDL Acquired"]
                     values = [orientation, permit, training, cdl]
@@ -820,48 +827,49 @@ with ui.navset_bar(
                     return fig
 
             # Average Days Chart
-            with ui.card(full_screen=True):
-                ui.card_header("Average Days Between Milestones")
-                @render_widget
-                def days_milestones_chart():
-                    df_f = student_snapshot_df()
-                    if df_f.empty:
-                        fig = go.Figure()
-                        fig.add_annotation(text="No data", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
-                        return fig
+            # with ui.card(full_screen=True):
+            #     ui.card_header("Average Days Between Milestones")
+            #     @render_widget
+            #     def days_milestones_chart():
+            #         df_f = student_snapshot_df()
+            #         if df_f.empty:
+            #             fig = go.Figure()
+            #             fig.add_annotation(text="No data", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+            #             return fig
                         
-                    # Compute historical progression averages
-                    permit_to_cdl = df_f['days_permit_to_cdl'].mean() if 'days_permit_to_cdl' in df_f.columns else 0
-                    total_training = df_f['total_training_days'].mean() if 'total_training_days' in df_f.columns else 0
+            #         # Compute historical progression averages
+            #         permit_to_cdl = df_f['days_permit_to_cdl'].mean() if 'days_permit_to_cdl' in df_f.columns else 0
+            #         total_training = df_f['total_training_days'].mean() if 'total_training_days' in df_f.columns else 0
                     
-                    metrics = {
-                        "Permit to CDL": permit_to_cdl,
-                        "Total Training": total_training
-                    }
+            #         metrics = {
+            #             "Permit to CDL": permit_to_cdl,
+            #             "Total Training": total_training
+            #         }
                     
-                    y_labels = list(metrics.keys())
-                    x_values = [val if pd.notna(val) else 0 for val in metrics.values()]
-                    text_values = [f"{val:.1f} days" if pd.notna(val) else "N/A" for val in metrics.values()]
+            #         y_labels = list(metrics.keys())
+            #         x_values = [val if pd.notna(val) else 0 for val in metrics.values()]
+            #         text_values = [f"{val:.1f} days" if pd.notna(val) else "N/A" for val in metrics.values()]
                     
-                    fig = go.Figure(go.Bar(
-                        x=x_values,
-                        y=y_labels,
-                        orientation='h',
-                        text=text_values,
-                        textposition='auto',
-                        marker_color=[STUDENT_TRAINING_CDL_COLOR, STUDENT_CDL_COLOR]
-                    ))
+            #         fig = go.Figure(go.Bar(
+            #             x=x_values,
+            #             y=y_labels,
+            #             orientation='h',
+            #             text=text_values,
+            #             textposition='auto',
+            #             marker_color=[STUDENT_TRAINING_CDL_COLOR, STUDENT_CDL_COLOR]
+            #         ))
                     
-                    fig.update_layout(
-                        xaxis_title="Average Days",
-                        margin=dict(l=20, r=20, t=36, b=20),
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(248,250,252,1)',
-                        font=dict(size=12, color='#334155'),
-                        height=400,
-                        xaxis=dict(gridcolor='rgba(148,163,184,0.25)', zeroline=False)
-                    )
-                    return fig
+            #         fig.update_layout(
+            #             xaxis_title="Average Days",
+            #             margin=dict(l=20, r=20, t=36, b=20),
+            #             paper_bgcolor='rgba(0,0,0,0)',
+            #             plot_bgcolor='rgba(248,250,252,1)',
+            #             font=dict(size=12, color='#334155'),
+            #             height=400,
+            #             xaxis=dict(gridcolor='rgba(148,163,184,0.25)', zeroline=False)
+            #         )
+            #         return fig
+            '''
     # ----------------------------------------------------------------------------------
     # Page 3: Ridership
     # ----------------------------------------------------------------------------------

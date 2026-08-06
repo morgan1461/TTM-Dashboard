@@ -221,3 +221,4 @@ __marimo__/
 logs/
 test_data.csv
 .vscode
+tsm_trending_list.csv

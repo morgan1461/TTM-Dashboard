@@ -372,41 +372,41 @@ def save_data(df, is_full_time=False, is_part_time=False, is_student=False, data
 if __name__ == "__main__":
 
     # STEP 1: Extract raw data from the 2 sources
-    # workday_report = load_workday_report_from_path(HIST_PATH) # NOTE: temporary
+    workday_report = load_workday_report() # NOTE: temporary
     training_staffing_master_report = TEMP_load_training_staffing_master(archive=False) # EDIT ONCE THIS IS AUTOMATED
     print("Data extraction complete.")
 
     # STEP 2: Transform and clean the raw data
-    # cleaned_workday_report = clean_workday_report(workday_report)
-    # print("Workday report cleaned.")
+    cleaned_workday_report = clean_workday_report(workday_report)
+    print("Workday report cleaned.")
 
     # extract ft, pt, students
-    # full_time_df = transform_workday_report(cleaned_workday_report, is_full_time=True)
-    # print("Full-time report transformed.")
-    # part_time_df = transform_workday_report(cleaned_workday_report)
-    # print("Part-time report transformed.")
-    # workday_student_df = transform_workday_report(cleaned_workday_report, is_student=True)
-    # print("Workday student report transformed.")
+    full_time_df = transform_workday_report(cleaned_workday_report, is_full_time=True)
+    print("Full-time report transformed.")
+    part_time_df = transform_workday_report(cleaned_workday_report)
+    print("Part-time report transformed.")
+    workday_student_df = transform_workday_report(cleaned_workday_report, is_student=True)
+    print("Workday student report transformed.")
 
     # traning staffing master for additional student cols
-    # cleaned_training_staffing_master_report = clean_student_training_staffing_master(training_staffing_master_report)
-    # print("Training staffing master report cleaned.")
+    cleaned_training_staffing_master_report = clean_student_training_staffing_master(training_staffing_master_report)
+    print("Training staffing master report cleaned.")
 
     # merge these 2 dfs for students
-    # merged_student_df = merge_workday_training_staffing_student(workday_student_df, cleaned_training_staffing_master_report)
-    # print("Merged student report")
+    merged_student_df = merge_workday_training_staffing_student(workday_student_df, cleaned_training_staffing_master_report)
+    print("Merged student report")
     # print(merged_student_df.head())
     # print(merged_student_df.shape)
 
-    # cleaned_merged_student_df = clean_merged_student_df(merged_student_df)
+    cleaned_merged_student_df = clean_merged_student_df(merged_student_df)
     # print("Cleaned merged student report")
     # print(cleaned_merged_student_df.head())
     # print(cleaned_merged_student_df.shape)
 
     # STEP 3: Load the data to the centralized repo
-    # save_data(full_time_df, is_full_time=True, date=DATE)
-    # save_data(part_time_df, is_part_time=True, date=DATE)
-    # save_data(cleaned_merged_student_df, is_student=True, date=DATE)
-    # print("Data saved to central repository with date: " + str(DATE))
+    save_data(full_time_df, is_full_time=True, date=DATE)
+    save_data(part_time_df, is_part_time=True, date=DATE)
+    save_data(cleaned_merged_student_df, is_student=True, date=DATE)
+    print("Data saved to central repository with date: " + str(DATE))
 
     training_staffing_master_report.to_csv(f'tsm_trending_list.csv', index=False)
