@@ -105,10 +105,11 @@ def clean_workday_report(df):
 
     # rename columns for easier access
     df_cut.rename(columns={
-        'Legal Name in General Display Format': 'full_name',
+        'ID': 'employee_id',
+        'Legal Name in General Display Format': 'full_name_workday',
         'Legal Name - Last Name': 'last_name',
         'Legal Name - First Name': 'first_name',
-        'Hire Date': 'hire_date',
+        'Hire Date': 'hire_date_workday',
         'Job Family': 'job_family',
         'Job Family Group': 'job_family_group',
         'Employee Type': 'employee_status',
@@ -126,9 +127,9 @@ def clean_workday_report(df):
     # (no having cdl status for full/part timers as they all must have cdl for the job)
 
     # confirm data types
-    int_cols = ['ID']
-    string_cols = ['full_name', 'last_name', 'first_name', 'job_family', 'job_family_group', 'employee_status', 'job_code']
-    date_cols = ['hire_date']
+    int_cols = ['employee_id']
+    string_cols = ['full_name_workday', 'last_name', 'first_name', 'job_family', 'job_family_group', 'employee_status', 'job_code']
+    date_cols = ['hire_date_workday']
     # enforce data types
     df_cut[int_cols] = df_cut[int_cols].astype('Int64')
     df_cut[string_cols] = df_cut[string_cols].astype('string').apply(lambda x: x.str.strip()) # ensure no whitespaces
@@ -221,18 +222,20 @@ def clean_student_training_staffing_master(df):
     df = df[cols_to_keep]
 
     df = df.rename(columns={
-        'Name': 'full_name',
+        'Name': 'full_name_tsm',
         'Employee ID': 'employee_id',
         'Drivers #': 'driver_num',
         'Active': 'active',
         'Permit': 'permit',
         'CDL': 'cdl',
-        'Hire Date': 'hire_date',
+        'Hire Date': 'hire_date_tsm',
         'Student CDL Training Start Date': 'cdl_training_start_date',
     })
 
     # remove all non active student employees
     df = df[df['active'] == 1]
+
+    df['employee_id'] = df['employee_id'].astype('Int64')
 
     return df
 
@@ -262,7 +265,7 @@ def merge_workday_training_staffing_student(workday_df, training_staffing_master
     merged_df = merged_workday_df.merge(
         training_staffing_master_df,
         how='left',
-        left_on='ID',
+        left_on='employee_id',
         right_on='employee_id'
     )
 
@@ -358,7 +361,7 @@ def save_data(df, is_full_time=False, is_part_time=False, is_student=False, data
 if __name__ == "__main__":
 
     # STEP 1: Extract raw data from the 2 sources
-    workday_report = load_workday_report() # NOTE: temporary
+    workday_report = load_workday_report_from_path('K:\\AP\\TTM\\Data\\+ Data Repository\\Dashboard\\Staffing\\Workday Reports\\Current_Worker_Detail_Report_07_19_2026.xlsx') # testing purposes
     training_staffing_master_report = TEMP_load_training_staffing_master(archive=False) # EDIT ONCE THIS IS AUTOMATED
     print("Data extraction complete.")
 
@@ -388,6 +391,10 @@ if __name__ == "__main__":
     print("Merged student report")
     print(merged_student_df.head())
     print(merged_student_df.shape)
+    merged_student_df.to_csv('merge_test.csv', index=False)
+
+    cleaned_training_staffing_master_report.to_csv('cleaned_training_staffing_master_report.csv', index=False)
+    cleaned_workday_report.to_csv('cleaned_workday_report.csv', index=False)
 
     # cleaned_merged_student_df = clean_merged_student_df(merged_student_df)
     # print("Cleaned merged student report")
