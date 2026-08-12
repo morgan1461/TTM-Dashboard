@@ -13,21 +13,62 @@ body {
   overflow: auto;
 }
 
+.bslib-grid {
+  gap: 1rem;
+  align-items: stretch;
+}
+
 .bslib-card,
 .card {
-  overflow: visible;
+  overflow: hidden;
   min-height: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.9rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .bslib-card > .card-body,
 .card-body {
-  overflow: visible;
+  overflow: hidden;
+  padding: 0.9rem 1rem 1rem;
+}
+
+.dashboard-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-card > .card-header {
+  flex: 0 0 auto;
+  padding: 0.8rem 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: rgba(248, 250, 252, 0.9);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dashboard-card > .card-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .plotly.html-widget,
-.plotly-graph-div {
+.plotly-graph-div,
+.js-plotly-plot {
   max-width: 100%;
-  overflow: visible !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 360px;
+  overflow: hidden !important;
+}
+
+.dashboard-card .plotly.html-widget,
+.dashboard-card .plotly-graph-div,
+.dashboard-card .js-plotly-plot {
+  min-height: 360px;
 }
 
 .kpi-stack {

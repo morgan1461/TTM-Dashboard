@@ -108,6 +108,7 @@ except ImportError:
     print("Fail: Staffing data not found")
 
 staffing_df = staffing_df.copy()
+print(staffing_df.head())
 # ensure all data is imported as expected
 
 # for date in staffing_df['date'].dt.date.unique():
@@ -163,6 +164,14 @@ with ui.navset_bar(
                     "Employee Type",
                     choices={"full_time": "Full Time", "part_time": "Part Time", "student": "Student"},
                     selected=["full_time", "part_time", "student"],
+                )
+
+                ui.input_radio_buttons(
+                    "retention_metric",
+                    "Retention View",
+                    choices={"count": "Counts", "percent": "Percentages"},
+                    selected="percent",
+                    inline=True,
                 )
 
             # --- Reactive filtered dataframe ---
@@ -390,9 +399,9 @@ with ui.navset_bar(
                         return _kpi_summary_ui(current, trend, gained_count, lost_count)
 
         # --- Charts row ---
-            with ui.layout_columns(col_widths=(8, 4)):
+            with ui.layout_columns(col_widths=(8, 4), fill=False):
                 # Staffing trend over time (2/3 width)
-                with ui.card(full_screen=True):
+                with ui.card(full_screen=True, class_="dashboard-card"):
                     ui.card_header("Staffing Trend")
 
                     @render_widget
@@ -492,7 +501,7 @@ with ui.navset_bar(
                         return fig
 
                 # Student CDL Status breakdown donut chart (1/3 width)
-                with ui.card(full_screen=True):
+                with ui.card(full_screen=True, class_="dashboard-card"):
                     ui.card_header("Student CDL Status Breakdown")
 
                     @render_widget
@@ -571,102 +580,107 @@ with ui.navset_bar(
 
                         return fig
 
-                # Full time staffing retention metrics
-                with ui.card(full_screen=True):
+                # Staff retention metrics over time
+                with ui.card(full_screen=True, class_="dashboard-card"):
                     ui.card_header("Staff Retention")
                     @render_widget
                     def retention():
                         df_f = filtered_df().copy()
-                        
-                        # 1. Failsafe checks
+
                         if df_f.empty or 'hire_date' not in df_f.columns:
                             fig = go.Figure()
                             fig.add_annotation(
-                                text="No retention data available", 
-                                xref="paper", yref="paper", 
-                                x=0.5, y=0.5, showarrow=False
+                                text="No retention data available",
+                                xref="paper", yref="paper",
+                                x=0.5, y=0.5, showarrow=False,
                             )
                             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                             return fig
 
-                        # 2. Filter for only Full Time employees in the most recent snapshot
-                        max_date = df_f['date'].max()
-                        ft_df = df_f[df_f['date'] == max_date].copy()
-                        
-                        if ft_df.empty:
+                        staff_df = df_f[df_f['employee_type'].isin(['full_time', 'part_time'])].copy()
+                        if staff_df.empty:
                             fig = go.Figure()
-                            fig.add_annotation(text="No full-time staff in current snapshot", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+                            fig.add_annotation(
+                                text="No staff in the selected range",
+                                xref="paper", yref="paper",
+                                x=0.5, y=0.5, showarrow=False,
+                            )
                             return fig
 
-                        # 3. Calculate Tenure dynamically
-                        # Ensure dates are datetime objects
-                        ft_df['hire_date'] = pd.to_datetime(ft_df['hire_date'], errors='coerce')
-                        ft_df['date'] = pd.to_datetime(ft_df['date'])
-                        
-                        # Calculate days between hire date and snapshot date
-                        ft_df['tenure_days'] = (ft_df['date'] - ft_df['hire_date']).dt.days
-                        
-                        # 4. Create Tenure Buckets
+                        staff_df['date'] = pd.to_datetime(staff_df['date'])
+                        staff_df['hire_date'] = pd.to_datetime(staff_df['hire_date'], errors='coerce')
+                        staff_df = staff_df[staff_df['hire_date'].notna()].copy()
+
+                        if staff_df.empty:
+                            fig = go.Figure()
+                            fig.add_annotation(
+                                text="No staff tenure data available",
+                                xref="paper", yref="paper",
+                                x=0.5, y=0.5, showarrow=False,
+                            )
+                            return fig
+
                         def categorize_tenure(days):
                             if pd.isna(days):
-                                return 'Unknown'
-                            elif days < 365:
+                                return None
+                            if days < 365:
                                 return '<1 Year'
-                            elif days < 1825: # 5 years * 365
+                            if days < 1825:
                                 return '1-5 Years'
-                            else:
-                                return '5+ Years'
-                                
-                        ft_df['Tenure_Bucket'] = ft_df['tenure_days'].apply(categorize_tenure)
-                        
-                        # 5. Aggregate the counts and calculate percentages
-                        bucket_counts = ft_df['Tenure_Bucket'].value_counts()
-                        total_staff = len(ft_df)
-                        
-                        # Calculate percentages safely
-                        pct_under_1 = (bucket_counts.get('<1 Year', 0) / total_staff) * 100 if total_staff > 0 else 0
-                        pct_1_to_5 = (bucket_counts.get('1-5 Years', 0) / total_staff) * 100 if total_staff > 0 else 0
-                        pct_5_plus = (bucket_counts.get('5+ Years', 0) / total_staff) * 100 if total_staff > 0 else 0
+                            return '5+ Years'
 
-                        # Define sequential colors
+                        staff_df['tenure_days'] = (staff_df['date'] - staff_df['hire_date']).dt.days
+                        staff_df['Tenure_Bucket'] = staff_df['tenure_days'].apply(categorize_tenure)
+                        staff_df = staff_df[staff_df['Tenure_Bucket'].notna()].copy()
+
+                        if staff_df.empty:
+                            fig = go.Figure()
+                            fig.add_annotation(
+                                text="No staff in a retention bucket",
+                                xref="paper", yref="paper",
+                                x=0.5, y=0.5, showarrow=False,
+                            )
+                            return fig
+
+                        buckets = ['<1 Year', '1-5 Years', '5+ Years']
                         colors = {
-                            '<1 Year': '#9ecae1',   # Light blue
-                            '1-5 Years': '#3182bd', # Medium blue
-                            '5+ Years': '#08519c'   # Dark blue
+                            '<1 Year': '#9ecae1',
+                            '1-5 Years': '#3182bd',
+                            '5+ Years': '#08519c',
                         }
+                        metric = input.retention_metric()
+                        dates = sorted(staff_df['date'].drop_duplicates().tolist())
 
-                        # 6. Build the Plotly figure
                         fig = go.Figure()
+                        for bucket in buckets:
+                            values = []
+                            for snapshot_date in dates:
+                                slice_df = staff_df[staff_df['date'] == snapshot_date]
+                                total_for_date = len(slice_df)
+                                count = int((slice_df['Tenure_Bucket'] == bucket).sum())
+                                if metric == 'percent':
+                                    value = (count / total_for_date * 100) if total_for_date else 0
+                                else:
+                                    value = count
+                                values.append(value)
 
-                        # Add traces for each bucket (Using "Overall" as the X-axis label)
-                        fig.add_trace(go.Bar(
-                            x=["Overall"], 
-                            y=[pct_under_1], 
-                            name='<1 Year', 
-                            marker_color=colors['<1 Year'],
-                            hovertemplate="<b>%{x}</b><br><1 Year: %{y:.1f}%<extra></extra>"
-                        ))
-                        
-                        fig.add_trace(go.Bar(
-                            x=["Overall"], 
-                            y=[pct_1_to_5], 
-                            name='1-5 Years', 
-                            marker_color=colors['1-5 Years'],
-                            hovertemplate="<b>%{x}</b><br>1-5 Years: %{y:.1f}%<extra></extra>"
-                        ))
-                        
-                        fig.add_trace(go.Bar(
-                            x=["Overall"], 
-                            y=[pct_5_plus], 
-                            name='5+ Years', 
-                            marker_color=colors['5+ Years'],
-                            hovertemplate="<b>%{x}</b><br>5+ Years: %{y:.1f}%<extra></extra>"
-                        ))
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=pd.to_datetime(dates),
+                                    y=values,
+                                    mode='lines+markers',
+                                    name=bucket,
+                                    line=dict(width=3, color=colors[bucket]),
+                                    marker=dict(size=7, color=colors[bucket]),
+                                    hovertemplate=(
+                                        f"<b>{bucket}</b><br>%{{x|%Y-%m-%d}}<br>"
+                                        + ("Count: %{y:.0f}<extra></extra>" if metric == 'count' else "Percent: %{y:.1f}%<extra></extra>")
+                                    ),
+                                )
+                            )
 
-                        # Apply layout styling
                         fig.update_layout(
                             autosize=True,
-                            barmode='stack',
                             height=470,
                             showlegend=True,
                             legend=dict(
@@ -680,15 +694,34 @@ with ui.navset_bar(
                             paper_bgcolor='rgba(0,0,0,0)',
                             plot_bgcolor='rgba(0,0,0,0)',
                             font=dict(size=11, color='#334155'),
+                            xaxis=dict(title='Date', tickangle=-30),
                             yaxis=dict(
-                                title="Percentage of Staff (%)",
-                                range=[0, 100],
+                                title='Percentage of Staff (%)' if metric == 'percent' else 'Headcount',
                                 showgrid=True,
-                                gridcolor='#e2e8f0'
+                                gridcolor='#e2e8f0',
+                                range=[0, max(100, max([v for trace in fig.data for v in trace.y]) * 1.2 if fig.data else 1)] if metric == 'percent' else [0, max([v for trace in fig.data for v in trace.y]) * 1.2 if fig.data else 1],
                             )
                         )
 
                         return fig
+
+                # Records table
+                with ui.card(full_screen=True, class_="dashboard-card"):
+                    ui.card_header("Student Employee Records Table")
+
+                    @render.data_frame
+                    def summary_statistics():
+                        student_df = filtered_df().copy()
+                        student_df = student_df[student_df['employee_type'] == 'student'].copy()
+                        if student_df.empty:
+                            empty_df = pd.DataFrame(columns=['full_name', 'cdl_status', 'hire_date'])
+                            return render.DataGrid(empty_df, filters=True)
+
+                        latest_date = student_df['date'].max()
+                        display_df = student_df[student_df['date'] == latest_date][['full_name', 'cdl_status', 'hire_date']].copy()
+                        display_df = display_df.dropna(subset=['full_name']).sort_values('full_name').reset_index(drop=True)
+                        display_df['hire_date'] = pd.to_datetime(display_df['hire_date'], errors='coerce').dt.strftime('%Y-%m-%d')
+                        return render.DataGrid(display_df, filters=True)
 
             # # --- Gains/Losses Trend Chart (below staffing trend) ---
             # with ui.card():
