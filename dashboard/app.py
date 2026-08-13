@@ -108,7 +108,7 @@ except ImportError:
     print("Fail: Staffing data not found")
 
 staffing_df = staffing_df.copy()
-print(staffing_df.head())
+# print(staffing_df.head())
 # ensure all data is imported as expected
 
 # for date in staffing_df['date'].dt.date.unique():
@@ -751,158 +751,202 @@ with ui.navset_bar(
     # ----------------------------------------------------------------------------------
 
     with ui.nav_panel("Student Trends", icon=icon_svg("chart-simple")):
-        ui.p("Under Construction")
-        
-        ui.p("Note: this counts student supervisors as to why the numbers do not add up from previous staffing page")
-        
-        # --- Reactive dataframe (No Date Filtering) ---
-        # --- Reactive dataframe (No Date Filtering) ---
+        ui.h4("Student Training Timeline")
+        ui.p("Average progression from orientation through permit, DOT certification, CDL training, and final CDL completion. Permit deadlines are shown as a benchmark for timing risk.")
+
         @reactive.calc
         def student_snapshot_df():
-            # Use a new local variable name 'df' to avoid UnboundLocalError
             df = student_trends_df.copy()
-            df = df[df['active'] == 1]
+            df = df[df['active'] == 1].copy()
+
+            for col in [
+                'orientation_date',
+                'student_permit_deadline',
+                'student_cdl_permit_date',
+                'cdl_training_start_date',
+                'student_cdl_date',
+            ]:
+                if col in df.columns:
+                    df[col] = pd.to_datetime(df[col], errors='coerce')
 
             return df
 
-        # --- Top KPIs ---
+        @reactive.calc
+        def student_timeline_metrics():
+            df = student_snapshot_df()
+            if df.empty:
+                return {
+                    'labels': [],
+                    'days': [],
+                    'intervals': {},
+                    'deadline_days': None,
+                    'total_days': 0,
+                }
+
+            valid = df.dropna(subset=['orientation_date', 'student_cdl_permit_date', 'cdl_training_start_date', 'student_cdl_date']).copy()
+            if valid.empty:
+                return {
+                    'labels': [],
+                    'days': [],
+                    'intervals': {},
+                    'deadline_days': None,
+                    'total_days': 0,
+                }
+
+            valid['orientation_to_permit'] = (valid['student_cdl_permit_date'] - valid['orientation_date']).dt.days
+            valid['permit_to_dot'] = (valid['cdl_training_start_date'] - valid['student_cdl_permit_date']).dt.days
+            valid['dot_to_training'] = (valid['cdl_training_start_date'] - valid['student_cdl_permit_date']).dt.days
+            valid['training_to_cdl'] = (valid['student_cdl_date'] - valid['cdl_training_start_date']).dt.days
+
+            intervals = {
+                'orientation_to_permit': valid['orientation_to_permit'].mean(),
+                'permit_to_dot': valid['permit_to_dot'].mean(),
+                'dot_to_training': valid['dot_to_training'].mean(),
+                'training_to_cdl': valid['training_to_cdl'].mean(),
+            }
+
+            total = sum(v for v in intervals.values() if pd.notna(v))
+
+            deadline_series = df.dropna(subset=['orientation_date', 'student_permit_deadline'])
+            deadline_days = None
+            if not deadline_series.empty:
+                deadline_days = (deadline_series['student_permit_deadline'] - deadline_series['orientation_date']).dt.days.mean()
+
+            labels = [
+                'Orientation',
+                'CDL Permit',
+                'DOT Cert',
+                'CDL Training',
+                'CDL',
+            ]
+            days = [
+                0,
+                intervals['orientation_to_permit'],
+                intervals['orientation_to_permit'] + intervals['permit_to_dot'],
+                intervals['orientation_to_permit'] + intervals['permit_to_dot'] + intervals['dot_to_training'],
+                total,
+            ]
+
+            return {
+                'labels': labels,
+                'days': days,
+                'intervals': intervals,
+                'deadline_days': deadline_days,
+                'total_days': total,
+            }
+
         with ui.layout_column_wrap(fill=False):
             with ui.value_box(showcase=icon_svg("user-graduate").add_style(f"fill: {STUDENT_COLOR} !important;")):
-                "Total Active Students"
+                "Active Students"
                 @render.ui
                 def active_students_kpi():
                     df_f = student_snapshot_df()
-                    if df_f.empty or 'active' not in df_f.columns:
-                        return ui.tags.div(ui.tags.span("0", class_="kpi-current"))
-                    
-                    active_count = df_f[df_f['active'] == 1].shape[0]
-                    return ui.tags.div(ui.tags.span(str(active_count), class_="kpi-current"))
-                    
-            with ui.value_box(showcase=icon_svg("id-card").add_style(f"fill: {STUDENT_NON_CDL_COLOR} !important;")):
-                "Students with Permit"
-                @render.ui
-                def permit_students_kpi():
-                    df_f = student_snapshot_df()
-                    if df_f.empty or 'permit' not in df_f.columns:
-                        return ui.tags.div(ui.tags.span("0", class_="kpi-current"))
-                    
-                    permit_count = df_f[(df_f['active'] == 1) & (df_f['permit'] == True)].shape[0]
-                    return ui.tags.div(ui.tags.span(str(permit_count), class_="kpi-current"))
-                    
-            with ui.value_box(showcase=icon_svg("truck").add_style(f"fill: {STUDENT_CDL_COLOR} !important;")):
-                "Students with CDL"
-                @render.ui
-                def cdl_students_kpi():
-                    df_f = student_snapshot_df()
-                    if df_f.empty or 'cdl' not in df_f.columns:
-                        return ui.tags.div(ui.tags.span("0", class_="kpi-current"))
-                    
-                    cdl_count = df_f[(df_f['active'] == 1) & (df_f['cdl'] == True)].shape[0]
-                    return ui.tags.div(ui.tags.span(str(cdl_count), class_="kpi-current"))
-                    
-            # with ui.value_box(showcase=icon_svg("stopwatch").add_style(f"fill: {TOTAL_COLOR} !important;")):
-            #     "Avg. Total Training Days"
-            #     @render.ui
-            #     def avg_training_days_kpi():
-            #         df_f = student_snapshot_df()
-            #         if df_f.empty or 'total_training_days' not in df_f.columns:
-            #             return ui.tags.div(ui.tags.span("N/A", class_="kpi-current"))
-                    
-            #         avg_days = df_f['total_training_days'].mean()
-            #         val = f"{avg_days:.1f}" if pd.notna(avg_days) else "N/A"
-            #         return ui.tags.div(
-            #             ui.tags.span(val, class_="kpi-current"),
-            #             ui.tags.span(" days", style="font-size: 1rem; color: #64748b; margin-left: 0.3rem;")
-            #         )
-
-        # --- Charts Row ---
-        with ui.layout_columns(col_widths=(7, 5), gap="2rem"):
-            # Training Pipeline Funnel
-            with ui.card(full_screen=True):
-                ui.card_header("Student Training Pipeline")
-                @render_widget
-                def training_funnel_chart():
-                    df_f = student_snapshot_df()
                     if df_f.empty:
-                        fig = go.Figure()
-                        fig.add_annotation(text="No data", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
-                        return fig
-                        
-                    # Count students by the earliest milestone they have reached, without counting
-                    # anyone who has already advanced to a later stage.
-                    has_orientation = df_f['orientation_date'].notna() if 'orientation_date' in df_f.columns else pd.Series(False, index=df_f.index)
-                    has_permit = df_f['student_cdl_permit_date'].notna() if 'student_cdl_permit_date' in df_f.columns else pd.Series(False, index=df_f.index)
-                    has_training = df_f['cdl_training_start_date'].notna() if 'cdl_training_start_date' in df_f.columns else pd.Series(False, index=df_f.index)
-                    has_cdl = df_f['student_cdl_date'].notna() if 'student_cdl_date' in df_f.columns else pd.Series(False, index=df_f.index)
+                        return ui.tags.div(ui.tags.span("0", class_="kpi-current"))
+                    return ui.tags.div(ui.tags.span(str(int(df_f.shape[0])), class_="kpi-current"))
 
-                    orientation = int((has_orientation & ~has_permit & ~has_training & ~has_cdl).sum())
-                    permit = int((has_permit & ~has_training & ~has_cdl).sum())
-                    training = int((has_training & ~has_cdl).sum())
-                    cdl = int(has_cdl.sum())
-                    
-                    stages = ["Orientation", "Permit Acquired", "CDL Training", "CDL Acquired"]
-                    values = [orientation, permit, training, cdl]
-                    
-                    fig = go.Figure(go.Funnel(
-                        y=stages,
-                        x=values,
-                        textinfo="value+percent initial",
-                        marker=dict(color=[STUDENT_COLOR, STUDENT_NON_CDL_COLOR, STUDENT_TRAINING_CDL_COLOR, STUDENT_CDL_COLOR])
-                    ))
-                    
-                    fig.update_layout(
-                        margin=dict(l=20, r=20, t=36, b=20),
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        font=dict(size=12, color='#334155'),
-                        height=400
+            with ui.value_box(showcase=icon_svg("id-card").add_style(f"fill: {STUDENT_NON_CDL_COLOR} !important;")):
+                "Avg. Orientation -> Permit"
+                @render.ui
+                def permit_timing_kpi():
+                    metrics = student_timeline_metrics()
+                    interval = metrics['intervals'].get('orientation_to_permit')
+                    if interval is None or pd.isna(interval):
+                        return ui.tags.div(ui.tags.span("N/A", class_="kpi-current"))
+                    val = int(round(interval))
+                    return ui.tags.div(
+                        ui.tags.span(f"{val} days", class_="kpi-current"),
+                        ui.tags.span(" average", style="font-size: 0.8rem; color: #64748b; margin-left: 0.25rem;"),
                     )
+
+            with ui.value_box(showcase=icon_svg("truck").add_style(f"fill: {STUDENT_CDL_COLOR} !important;")):
+                "Avg. Training -> CDL"
+                @render.ui
+                def training_to_cdl_kpi():
+                    metrics = student_timeline_metrics()
+                    interval = metrics['intervals'].get('training_to_cdl')
+                    if interval is None or pd.isna(interval):
+                        return ui.tags.div(ui.tags.span("N/A", class_="kpi-current"))
+                    val = int(round(interval))
+                    return ui.tags.div(
+                        ui.tags.span(f"{val} days", class_="kpi-current"),
+                        ui.tags.span(" average", style="font-size: 0.8rem; color: #64748b; margin-left: 0.25rem;"),
+                    )
+
+        with ui.card(full_screen=True):
+            ui.card_header("Average Student Progression Timeline")
+            @render_widget
+            def student_progress_timeline_chart():
+                metrics = student_timeline_metrics()
+                if not metrics['labels']:
+                    fig = go.Figure()
+                    fig.add_annotation(text="No milestone data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+                    fig.update_layout(height=320, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                     return fig
 
-            # Average Days Chart
-            # with ui.card(full_screen=True):
-            #     ui.card_header("Average Days Between Milestones")
-            #     @render_widget
-            #     def days_milestones_chart():
-            #         df_f = student_snapshot_df()
-            #         if df_f.empty:
-            #             fig = go.Figure()
-            #             fig.add_annotation(text="No data", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
-            #             return fig
-                        
-            #         # Compute historical progression averages
-            #         permit_to_cdl = df_f['days_permit_to_cdl'].mean() if 'days_permit_to_cdl' in df_f.columns else 0
-            #         total_training = df_f['total_training_days'].mean() if 'total_training_days' in df_f.columns else 0
-                    
-            #         metrics = {
-            #             "Permit to CDL": permit_to_cdl,
-            #             "Total Training": total_training
-            #         }
-                    
-            #         y_labels = list(metrics.keys())
-            #         x_values = [val if pd.notna(val) else 0 for val in metrics.values()]
-            #         text_values = [f"{val:.1f} days" if pd.notna(val) else "N/A" for val in metrics.values()]
-                    
-            #         fig = go.Figure(go.Bar(
-            #             x=x_values,
-            #             y=y_labels,
-            #             orientation='h',
-            #             text=text_values,
-            #             textposition='auto',
-            #             marker_color=[STUDENT_TRAINING_CDL_COLOR, STUDENT_CDL_COLOR]
-            #         ))
-                    
-            #         fig.update_layout(
-            #             xaxis_title="Average Days",
-            #             margin=dict(l=20, r=20, t=36, b=20),
-            #             paper_bgcolor='rgba(0,0,0,0)',
-            #             plot_bgcolor='rgba(248,250,252,1)',
-            #             font=dict(size=12, color='#334155'),
-            #             height=400,
-            #             xaxis=dict(gridcolor='rgba(148,163,184,0.25)', zeroline=False)
-            #         )
-            #         return fig
-            
+                labels = metrics['labels']
+                x_vals = metrics['days']
+                colors = [
+                    STUDENT_COLOR,
+                    STUDENT_NON_CDL_COLOR,
+                    '#2563EB',
+                    STUDENT_TRAINING_CDL_COLOR,
+                    STUDENT_CDL_COLOR,
+                ]
+
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=x_vals,
+                    y=[0, 0, 0, 0, 0],
+                    mode='lines+markers+text',
+                    line=dict(color='#334155', width=2),
+                    marker=dict(size=15, color=colors),
+                    text=[f"{int(round(v))}d" for v in x_vals],
+                    textposition=['top center', 'top center', 'top center', 'top center', 'top center'],
+                    hovertemplate='%{text}<extra></extra>',
+                ))
+
+                for value, label, color in zip(x_vals, labels, colors):
+                    fig.add_annotation(
+                        x=value,
+                        y=0,
+                        text=label,
+                        showarrow=False,
+                        yshift=18,
+                        font=dict(size=11, color='#0F172A'),
+                        bgcolor='rgba(255,255,255,0.8)',
+                        bordercolor=color,
+                        borderwidth=1,
+                        align='center',
+                    )
+
+                if metrics['deadline_days'] is not None:
+                    fig.add_vline(
+                        x=metrics['deadline_days'],
+                        line_dash='dash',
+                        line_color='#DC2626',
+                        annotation_text='Permit deadline',
+                        annotation_position='top left',
+                    )
+
+                fig.update_layout(
+                    title='Average days by milestone',
+                    template='plotly_white',
+                    margin=dict(l=20, r=20, t=46, b=20),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    height=360,
+                    showlegend=False,
+                    xaxis_title='Days from orientation',
+                    yaxis=dict(showgrid=False, zeroline=False, visible=False),
+                    font=dict(size=12, color='#334155'),
+                )
+
+                if metrics['total_days'] > 0:
+                    fig.update_xaxes(range=[0, max(metrics['total_days'] * 1.25, 30)])
+
+                return fig
+
     # ----------------------------------------------------------------------------------
     # Page 3: Ridership
     # ----------------------------------------------------------------------------------
