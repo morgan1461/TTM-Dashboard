@@ -222,3 +222,7 @@ logs/
 test_data.csv
 .vscode
 tsm_trending_list.csv
+staffing/cleaned_training_staffing_master_report.csv
+staffing/cleaned_workday_report.csv
+staffing/merge_test.csv
+staffing/merge_test_1/

@@ -7,6 +7,7 @@ from datetime import date
 TEMP_TRAINING_STAFFING_MASTER_PATH = "K:/AP/TTM/Data/+ Data Repository/Dashboard/Staffing/TEMP Training Staffing Master"
 ARCHIVED_TRAINING_STAFFING_MASTER_PATH = "K:/AP/TTM/Data/+ Data Repository/Dashboard/Staffing/Training Staffing Master archive/"
 STUDENT_TRENDS_PATH = "K:/AP/TTM/Data/+ Data Repository/Dashboard/Student Trends/trends/"
+NON_CDL_TRACK_PATH = "K:/AP/TTM/Data/+ Data Repository/Dashboard/Student Trends/non_cdl_track_employees.txt"
 
 # ------------------------------------------
 # Extract
@@ -93,42 +94,46 @@ def clean_student_training_staffing_master(df):
 
     df[int_cols] = df[int_cols].astype('Int64')
     df[bool_cols] = df[bool_cols].astype('Int64') # 1, 0
-    df[date_cols] = df[date_cols].apply(lambda col: pd.to_datetime(col, errors='coerce').dt.date)
+    df[date_cols] = df[date_cols].apply(lambda col: pd.to_datetime(col, format='mixed', errors='coerce').dt.normalize())
 
     return df
 
 def student_feature_engineering(df):
     '''Feature engineering for the student training staffing master report
-        1 - Days to permit (permit date - training start date)
-        2 - permit to cdl (cdl date - permit date)
-        3 - total training days (cdl date - training start date)
 
-        4 - overdue deadline?
     
     Args:
         df (pd.DataFrame): The cleaned training staffing master report
     Returns:
         pd.DataFrame: The training staffing master report with additional features
     '''
-    date_cols = [
-        'hire_date',
-        'orientation_date',
-        'cdl_training_start_date',
-        'student_permit_deadline',
-        'dot_cert',
-        'student_cdl_permit_date',
-        'student_cdl_date',
-    ]
-
-    for col in date_cols:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
 
     # Calculate durations in days
-    df['days_to_permit'] = (df['student_cdl_permit_date'] - df['cdl_training_start_date']).dt.days
-    df['days_permit_to_cdl'] = (df['student_cdl_date'] - df['student_cdl_permit_date']).dt.days
-    df['total_training_days'] = (df['student_cdl_date'] - df['cdl_training_start_date']).dt.days
-    df['permit_overdue'] = (df['student_permit_deadline'] < pd.Timestamp.today()) & (df['student_cdl_permit_date'].isna())
+    df['orientation_to_permit_days'] = (df['student_cdl_permit_date'] - df['orientation_date']).dt.days
+    df['permit_to_dot_days'] = (df['dot_cert'] - df['student_cdl_permit_date']).dt.days
+    df['dot_to_training_start_days'] = (df['cdl_training_start_date'] - df['dot_cert']).dt.days
+    df['training_start_to_cdl_days'] = (df['student_cdl_date'] - df['cdl_training_start_date']).dt.days
+
+    df['orientation_to_cdl_days'] = (df['student_cdl_date'] - df['orientation_date']).dt.days
+
+    return df
+
+# WIP
+def mark_non_cdl_track_students(df, path=NON_CDL_TRACK_PATH):
+    '''Marks students that are not on the cdl track in the training staffing master report
+    
+    Args:
+        df (pd.DataFrame): The cleaned training staffing master report
+        path (str): The path to the txt file containing the list of students not on the cdl track - stored in data repository in TTM/Data - name must match what is on the sheet
+    Returns:
+        pd.DataFrame: The training staffing master report with an additional column indicating if a student is on the cdl track or not
+    '''
+    # Load the list of non-cdl track students from the txt file
+    with open(path, 'r') as file:
+        non_cdl_track_students = [line.strip() for line in file.readlines()]
+
+    # Create a new column 'non_cdl_track' and mark students that are not on the cdl track
+    df['non_cdl_track'] = df['full_name'].apply(lambda x: 1 if x in non_cdl_track_students else 0)
 
     return df
 
@@ -154,7 +159,8 @@ def save_student_training_staffing_master(df, path=STUDENT_TRENDS_PATH):
 if __name__ == "__main__":
     tsm_master = TEMP_load_training_staffing_master()
     tsm_master = clean_student_training_staffing_master(tsm_master)
-    # tsm_master = student_feature_engineering(tsm_master)
+    tsm_master = student_feature_engineering(tsm_master)
+    tsm_master = mark_non_cdl_track_students(tsm_master)
 
     # save_student_training_staffing_master(tsm_master)
     # print(f"Cleaned and feature engineered training staffing master report saved to {STUDENT_TRENDS_PATH}")
