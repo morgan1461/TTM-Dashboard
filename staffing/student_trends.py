@@ -37,7 +37,7 @@ def TEMP_load_training_staffing_master(path=TEMP_TRAINING_STAFFING_MASTER_PATH, 
 # ------------------------------------------
 
 def clean_student_training_staffing_master(df):
-    '''Cleans the training staffing master report for the timeline progress
+    '''Cleans the training staffing master report for the timeline progress. This will parse important columns, rename to pythonic format, and convert to proper dtypes
     
     Args:
         df (pd.DataFrame): The raw training staffing master report
@@ -47,14 +47,16 @@ def clean_student_training_staffing_master(df):
     # important columns: hire date, Orientation date, cdl permit date, cdl traiining start date, cdl date, permit deadline, etc
     important_columns = [
         'Name',
+        'Employee ID',
         'Drivers #',
         'Active',
         'Permit',
         'CDL',
-        'Hire Date',
+        'Hire Date', #jic
         'Orientation Date',
-        'Student Permit Deadline',
+        'Student Permit Deadline', #jic
         'Student CDL Permit Date',
+        'DOT Cert',
         'Student CDL Training Start Date',
         'Student CDL Date',
     ]
@@ -63,17 +65,35 @@ def clean_student_training_staffing_master(df):
 
     df = df.rename(columns={ # column will be added that indicates students that are not on the cdl track
     'Name': 'full_name', # hopefully will match up decently well with other df
+    'Employee ID': 'employee_id',
     'Drivers #': 'driver_num',
     'Active': 'active',
     'Permit': 'permit',
     'CDL': 'cdl',
     'Hire Date': 'hire_date',
-    'Student CDL Training Start Date': 'cdl_training_start_date',
     'Orientation Date': 'orientation_date',
     'Student Permit Deadline': 'student_permit_deadline',
     'Student CDL Permit Date': 'student_cdl_permit_date',
+    'DOT Cert': 'dot_cert',
+    'Student CDL Training Start Date': 'cdl_training_start_date',
     'Student CDL Date': 'student_cdl_date',
-})  
+})
+
+    # convert cols to proper dtypes
+    int_cols = ['employee_id', 'driver_num']
+    bool_cols = ['active', 'permit', 'cdl']
+    date_cols = [
+        'hire_date',
+        'orientation_date',
+        'cdl_training_start_date',
+        'student_permit_deadline',
+        'student_cdl_permit_date',
+        'student_cdl_date',
+    ]
+
+    df[int_cols] = df[int_cols].astype('Int64')
+    df[bool_cols] = df[bool_cols].astype('Int64') # 1, 0
+    df[date_cols] = df[date_cols].apply(lambda col: pd.to_datetime(col, errors='coerce').dt.date)
 
     return df
 
@@ -95,6 +115,7 @@ def student_feature_engineering(df):
         'orientation_date',
         'cdl_training_start_date',
         'student_permit_deadline',
+        'dot_cert',
         'student_cdl_permit_date',
         'student_cdl_date',
     ]
@@ -133,9 +154,11 @@ def save_student_training_staffing_master(df, path=STUDENT_TRENDS_PATH):
 if __name__ == "__main__":
     tsm_master = TEMP_load_training_staffing_master()
     tsm_master = clean_student_training_staffing_master(tsm_master)
-    tsm_master = student_feature_engineering(tsm_master)
+    # tsm_master = student_feature_engineering(tsm_master)
 
-    save_student_training_staffing_master(tsm_master)
-    print(f"Cleaned and feature engineered training staffing master report saved to {STUDENT_TRENDS_PATH}")
+    # save_student_training_staffing_master(tsm_master)
+    # print(f"Cleaned and feature engineered training staffing master report saved to {STUDENT_TRENDS_PATH}")
 
     print(tsm_master.head())
+    print(tsm_master.info())
+    tsm_master.to_csv(os.path.join(f"TEST_{str(date.today())}.csv"), index=False)
