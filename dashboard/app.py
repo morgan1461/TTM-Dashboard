@@ -705,22 +705,40 @@ with ui.navset_bar(
 
                         return fig
 
-                # Records table
+                # Records table - for all employees
                 with ui.card(full_screen=True, class_="dashboard-card"):
-                    ui.card_header("Student Employee Records Table")
+                    ui.card_header("Employee Records Table")
 
                     @render.data_frame
                     def summary_statistics():
-                        student_df = filtered_df().copy()
-                        student_df = student_df[student_df['employee_type'] == 'student'].copy()
-                        if student_df.empty:
-                            empty_df = pd.DataFrame(columns=['full_name', 'cdl_status', 'hire_date'])
+
+                        df_f = filtered_df()
+                        if df_f.empty:
+                            empty_df = pd.DataFrame(columns=['Name', 'Employee type', 'CDL status', 'Hire date'])
                             return render.DataGrid(empty_df, filters=True)
 
-                        latest_date = student_df['date'].max()
-                        display_df = student_df[student_df['date'] == latest_date][['full_name', 'cdl_status', 'hire_date']].copy()
+                        latest_date = df_f['date'].max()
+                        display_df = df_f[df_f['date'] == latest_date][['full_name', 'employee_type', 'cdl_status', 'hire_date']].copy()
                         display_df = display_df.dropna(subset=['full_name']).sort_values('full_name').reset_index(drop=True)
+                        employee_type_labels = {
+                            'full_time': 'Full time',
+                            'part_time': 'Part time',
+                            'student': 'Student',
+                        }
+                        cdl_status_labels = {
+                            'cdl': 'CDL',
+                            'non-cdl': 'Non-CDL',
+                            'training-cdl': 'CDL training',
+                        }
+                        display_df['employee_type'] = display_df['employee_type'].replace(employee_type_labels)
+                        display_df['cdl_status'] = display_df['cdl_status'].replace(cdl_status_labels)
                         display_df['hire_date'] = pd.to_datetime(display_df['hire_date'], errors='coerce').dt.strftime('%Y-%m-%d')
+                        display_df = display_df.rename(columns={
+                            'full_name': 'Name',
+                            'employee_type': 'Employee type',
+                            'cdl_status': 'CDL status',
+                            'hire_date': 'Hire date',
+                        })
                         return render.DataGrid(display_df, filters=True)
 
             # # --- Gains/Losses Trend Chart (below staffing trend) ---
