@@ -1,6 +1,7 @@
 import os
 import glob
 import pandas as pd
+import numpy as np
 from datetime import date
 
 # temp for manual pulling as of now , delete after access is fixed and implemented
@@ -113,8 +114,38 @@ def student_feature_engineering(df):
     df['permit_to_dot_days'] = (df['dot_cert'] - df['student_cdl_permit_date']).dt.days
     df['dot_to_training_start_days'] = (df['cdl_training_start_date'] - df['dot_cert']).dt.days
     df['training_start_to_cdl_days'] = (df['student_cdl_date'] - df['cdl_training_start_date']).dt.days
-
     df['orientation_to_cdl_days'] = (df['student_cdl_date'] - df['orientation_date']).dt.days
+
+    # create a stage col based on where each individual student employee is at
+    # most recent thing to be completed...
+    # categories: inactive, non cdl track, orientation, cdl permit, dot permit, cdl training, cdl
+
+    # define conditions
+    conditions = [
+        (df['active'] == 0),                       # inactive
+        # (df['non_cdl_track'] == 1),             # non cdl track
+        (df['cdl'] == 1),                          # cdl
+        (df['student_cdl_permit_date'].notna()),  # cdl permit obtained
+        (df['dot_cert'].notna()),                  # dot cert obtained
+        (df['cdl_training_start_date'].notna()),  # cdl training
+        (df['orientation_date'].notna()),          # orientation
+    ]
+
+    response = [
+        'inactive',
+        # 'non_cdl_track',
+        'cdl',
+        'cdl_permit',
+        'dot_cert',
+        'cdl_training',
+        'orientation',
+    ]
+
+    df['status'] = np.select(
+        [c.to_numpy(dtype=bool, na_value=False) for c in conditions],
+        response,
+        default='unknown'
+    )
 
     return df
 
@@ -159,12 +190,13 @@ def save_student_training_staffing_master(df, path=STUDENT_TRENDS_PATH):
 if __name__ == "__main__":
     tsm_master = TEMP_load_training_staffing_master()
     tsm_master = clean_student_training_staffing_master(tsm_master)
-    tsm_master = student_feature_engineering(tsm_master)
     tsm_master = mark_non_cdl_track_students(tsm_master)
+    tsm_master = student_feature_engineering(tsm_master)
 
-    # save_student_training_staffing_master(tsm_master)
-    # print(f"Cleaned and feature engineered training staffing master report saved to {STUDENT_TRENDS_PATH}")
 
-    print(tsm_master.head())
-    print(tsm_master.info())
-    tsm_master.to_csv(os.path.join(f"TEST_{str(date.today())}.csv"), index=False)
+    save_student_training_staffing_master(tsm_master)
+    print(f"Cleaned and feature engineered training staffing master report saved to {STUDENT_TRENDS_PATH}")
+
+    # print(tsm_master.head())
+    # print(tsm_master.info())
+    # tsm_master.to_csv(os.path.join(f"TEST_{str(date.today())}.csv"), index=False)
