@@ -6,3 +6,5 @@ matplotlib
 seaborn
 openpyxl
 pyarrow
+plotly
+shinywidgets
