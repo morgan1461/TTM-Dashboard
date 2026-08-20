@@ -28,6 +28,7 @@ def student_trends_tab(input, output, session, student_trends_df: pd.DataFrame):
                 'orientation_date',
                 'student_permit_deadline',
                 'student_cdl_permit_date',
+                'dot_cert',
                 'cdl_training_start_date',
                 'student_cdl_date',
             ]:
@@ -76,6 +77,7 @@ def student_trends_tab(input, output, session, student_trends_df: pd.DataFrame):
         @reactive.calc
         def student_duration_summary():
             df = student_snapshot_df()
+            df = df[df['active'] == 1].copy()
             durations = (
                 df['student_cdl_date'] - df['orientation_date']
             ).dt.days.dropna()
@@ -93,6 +95,48 @@ def student_trends_tab(input, output, session, student_trends_df: pd.DataFrame):
             }
 
         @reactive.calc
+        def student_pipeline_metrics():
+            df = student_snapshot_df()
+            stages = [
+                ('Orientation', 'orientation_date'),
+                ('CDL Permit', 'student_cdl_permit_date'),
+                ('DOT Cert', 'dot_cert'),
+                ('Training', 'cdl_training_start_date'),
+                ('CDL', 'student_cdl_date'),
+            ]
+
+            def stage_series(column_name: str) -> pd.Series:
+                return pd.to_datetime(
+                    df.get(column_name, pd.Series(index=df.index, dtype='datetime64[ns]')),
+                    errors='coerce',
+                )
+
+            transitions = []
+            for (from_label, from_column), (to_label, to_column) in zip(stages, stages[1:]):
+                from_series = stage_series(from_column)
+                to_series = stage_series(to_column)
+                durations = (to_series - from_series).dt.days.dropna()
+                durations = durations[durations >= 0]
+                transitions.append({
+                    'from': from_label,
+                    'to': to_label,
+                    'average': durations.mean() if not durations.empty else None,
+                    'minimum': int(durations.min()) if not durations.empty else None,
+                    'maximum': int(durations.max()) if not durations.empty else None,
+                    'completed': int(durations.size),
+                })
+
+            stage_counts = []
+            for label, column in stages:
+                column_series = stage_series(column)
+                stage_counts.append({
+                    'label': label,
+                    'completed': int(column_series.notna().sum()),
+                })
+
+            return {'transitions': transitions, 'stage_counts': stage_counts}
+
+        @reactive.calc
         def student_timeline_metrics():
             df = student_snapshot_df()
             if df.empty:
@@ -104,7 +148,20 @@ def student_trends_tab(input, output, session, student_trends_df: pd.DataFrame):
                     'total_days': 0,
                 }
 
-            valid = df.dropna(subset=['orientation_date', 'student_cdl_permit_date', 'cdl_training_start_date', 'student_cdl_date']).copy()
+            for col in [
+                'orientation_date',
+                'student_permit_deadline',
+                'student_cdl_permit_date',
+                'dot_cert',
+                'cdl_training_start_date',
+                'student_cdl_date',
+            ]:
+                if col not in df.columns:
+                    df[col] = pd.NaT
+
+            valid = df.dropna(
+                subset=['orientation_date', 'student_cdl_permit_date', 'cdl_training_start_date', 'student_cdl_date']
+            ).copy()
             if valid.empty:
                 return {
                     'labels': [],
@@ -115,9 +172,12 @@ def student_trends_tab(input, output, session, student_trends_df: pd.DataFrame):
                 }
 
             valid['orientation_to_permit'] = (valid['student_cdl_permit_date'] - valid['orientation_date']).dt.days
-            valid['permit_to_dot'] = (valid['cdl_training_start_date'] - valid['student_cdl_permit_date']).dt.days
-            valid['dot_to_training'] = (valid['cdl_training_start_date'] - valid['student_cdl_permit_date']).dt.days
+            valid['permit_to_dot'] = (valid['dot_cert'] - valid['student_cdl_permit_date']).dt.days
+            valid['dot_to_training'] = (valid['cdl_training_start_date'] - valid['dot_cert']).dt.days
             valid['training_to_cdl'] = (valid['student_cdl_date'] - valid['cdl_training_start_date']).dt.days
+
+            for interval_col in ['orientation_to_permit', 'permit_to_dot', 'dot_to_training', 'training_to_cdl']:
+                valid[interval_col] = valid[interval_col].where(valid[interval_col] >= 0)
 
             intervals = {
                 'orientation_to_permit': valid['orientation_to_permit'].mean(),
@@ -156,198 +216,326 @@ def student_trends_tab(input, output, session, student_trends_df: pd.DataFrame):
                 'total_days': total,
             }
 
-        with ui.layout_column_wrap(fill=False):
-            # with ui.value_box(showcase=icon_svg("user-graduate").add_style(f"fill: {STUDENT_COLOR} !important;")):
-            #     "Active Students"
-            #     @render.ui
-            #     def active_students_kpi():
-            #         df_f = student_snapshot_df()
-            #         if df_f.empty:
-            #             return ui.tags.div(ui.tags.span("0", class_="kpi-current"))
-            #         return ui.tags.div(ui.tags.span(str(int(df_f.shape[0])), class_="kpi-current"))
+        @reactive.calc
+        def student_transition_table_df():
+            metrics = student_pipeline_metrics()
+            rows = []
 
-            # with ui.value_box(showcase=icon_svg("id-card").add_style(f"fill: {STUDENT_NON_CDL_COLOR} !important;")):
-            #     "Avg. Orientation -> Permit"
-            #     @render.ui
-            #     def permit_timing_kpi():
-            #         metrics = student_timeline_metrics()
-            #         interval = metrics['intervals'].get('orientation_to_permit')
-            #         if interval is None or pd.isna(interval):
-            #             return ui.tags.div(ui.tags.span("N/A", class_="kpi-current"))
-            #         val = int(round(interval))
-            #         return ui.tags.div(
-            #             ui.tags.span(f"{val} days", class_="kpi-current"),
-            #             ui.tags.span(" average", style="font-size: 0.8rem; color: #64748b; margin-left: 0.25rem;"),
-            #         )
+            for transition in metrics['transitions']:
+                average = transition['average']
+                if average is None or pd.isna(average):
+                    average_days = None
+                    speed_band = 'No data'
+                else:
+                    average_days = int(round(average))
+                    if average_days <= 7:
+                        speed_band = 'Fast'
+                    elif average_days <= 14:
+                        speed_band = 'On Track'
+                    else:
+                        speed_band = 'Watch'
 
-            # with ui.value_box(showcase=icon_svg("truck").add_style(f"fill: {STUDENT_CDL_COLOR} !important;")):
-            #     "Avg. Training -> CDL"
-            #     @render.ui
-            #     def training_to_cdl_kpi():
-            #         metrics = student_timeline_metrics()
-            #         interval = metrics['intervals'].get('training_to_cdl')
-            #         if interval is None or pd.isna(interval):
-            #             return ui.tags.div(ui.tags.span("N/A", class_="kpi-current"))
-            #         val = int(round(interval))
-            #         return ui.tags.div(
-            #             ui.tags.span(f"{val} days", class_="kpi-current"),
-            #             ui.tags.span(" average", style="font-size: 0.8rem; color: #64748b; margin-left: 0.25rem;"),
-            #         )
+                rows.append({
+                    'transition': f"{transition['from']} -> {transition['to']}",
+                    'average_days': average_days,
+                    'range': (
+                        f"{transition['minimum']}-{transition['maximum']}"
+                        if transition['minimum'] is not None and transition['maximum'] is not None
+                        else 'N/A'
+                    ),
+                    'completed': transition['completed'],
+                    'speed_band': speed_band,
+                })
 
-            with ui.card():
-                ui.card_header("Student Employee Overview")
-                @render.ui
-                def student_workflow_overview():
-                    rows = []
-                    for metric in student_workflow_metrics():
-                        rows.append(
+            return pd.DataFrame(rows)
+
+        with ui.tags.div(class_="student-trends-scroll"):
+            with ui.layout_column_wrap(fill=False):
+                # with ui.value_box(showcase=icon_svg("user-graduate").add_style(f"fill: {STUDENT_COLOR} !important;")):
+                #     "Active Students"
+                #     @render.ui
+                #     def active_students_kpi():
+                #         df_f = student_snapshot_df()
+                #         if df_f.empty:
+                #             return ui.tags.div(ui.tags.span("0", class_="kpi-current"))
+                #         return ui.tags.div(ui.tags.span(str(int(df_f.shape[0])), class_="kpi-current"))
+
+                # with ui.value_box(showcase=icon_svg("id-card").add_style(f"fill: {STUDENT_NON_CDL_COLOR} !important;")):
+                #     "Avg. Orientation -> Permit"
+                #     @render.ui
+                #     def permit_timing_kpi():
+                #         metrics = student_timeline_metrics()
+                #         interval = metrics['intervals'].get('orientation_to_permit')
+                #         if interval is None or pd.isna(interval):
+                #             return ui.tags.div(ui.tags.span("N/A", class_="kpi-current"))
+                #         val = int(round(interval))
+                #         return ui.tags.div(
+                #             ui.tags.span(f"{val} days", class_="kpi-current"),
+                #             ui.tags.span(" average", style="font-size: 0.8rem; color: #64748b; margin-left: 0.25rem;"),
+                #         )
+
+                # with ui.value_box(showcase=icon_svg("truck").add_style(f"fill: {STUDENT_CDL_COLOR} !important;")):
+                #     "Avg. Training -> CDL"
+                #     @render.ui
+                #     def training_to_cdl_kpi():
+                #         metrics = student_timeline_metrics()
+                #         interval = metrics['intervals'].get('training_to_cdl')
+                #         if interval is None or pd.isna(interval):
+                #             return ui.tags.div(ui.tags.span("N/A", class_="kpi-current"))
+                #         val = int(round(interval))
+                #         return ui.tags.div(
+                #             ui.tags.span(f"{val} days", class_="kpi-current"),
+                #             ui.tags.span(" average", style="font-size: 0.8rem; color: #64748b; margin-left: 0.25rem;"),
+                #         )
+
+                with ui.card():
+                    ui.card_header("Student Employee Overview")
+
+                    @render.ui
+                    def student_workflow_overview():
+                        rows = []
+                        for metric in student_workflow_metrics():
+                            rows.append(
+                                ui.tags.div(
+                                    ui.tags.div(metric['label'], class_="student-workflow-label"),
+                                    ui.tags.div(
+                                        ui.tags.div(
+                                            style=f"width: {metric['width']:.1f}%; background-color: {metric['color']};",
+                                            class_="student-workflow-bar",
+                                        ),
+                                        class_="student-workflow-track",
+                                    ),
+                                    ui.tags.span(str(metric['total']), class_="student-workflow-total"),
+                                    class_="student-workflow-row",
+                                )
+                            )
+                        return ui.tags.div(*rows, class_="student-workflow-list")
+
+                with ui.card():
+                    ui.card_header("Current Student Stage")
+
+                    @render.ui
+                    def student_stage_counts_chart():
+                        stages = [
+                            ('Orientation', 'orientation', STUDENT_COLOR),
+                            ('Permit', 'cdl_permit', STUDENT_NON_CDL_COLOR),
+                            ('DOT', 'dot_cert', '#2563EB'),
+                            ('Training', 'cdl_training', STUDENT_TRAINING_CDL_COLOR),
+                        ]
+                        counts = student_stage_counts()
+                        maximum = max(counts.values(), default=0)
+                        rows = [
                             ui.tags.div(
-                                ui.tags.div(metric['label'], class_="student-workflow-label"),
+                                ui.tags.div(label, class_="student-workflow-label"),
                                 ui.tags.div(
                                     ui.tags.div(
-                                        style=f"width: {metric['width']:.1f}%; background-color: {metric['color']};",
+                                        style=f"width: {(counts[key] / maximum * 100 if maximum else 0):.1f}%; background-color: {color};",
                                         class_="student-workflow-bar",
                                     ),
                                     class_="student-workflow-track",
                                 ),
-                                ui.tags.span(str(metric['total']), class_="student-workflow-total"),
+                                ui.tags.span(str(counts[key]), class_="student-workflow-total"),
                                 class_="student-workflow-row",
                             )
-                        )
-                    return ui.tags.div(*rows, class_="student-workflow-list")
+                            for label, key, color in stages
+                        ]
+                        return ui.tags.div(*rows, class_="student-workflow-list")
 
-            with ui.card():
-                ui.card_header("Student Workflow Stage")
+                with ui.card():
+                    ui.card_header("CDL Timeline")
+
+                    @render.ui
+                    def student_duration_summary_ui():
+                        summary = student_duration_summary()
+                        if summary['completed'] == 0:
+                            return ui.tags.div("No completed orientation-to-CDL timelines", class_="student-duration-empty")
+
+                        def days(value):
+                            return f"{int(round(value))} days"
+
+                        return ui.tags.div(
+                            ui.tags.div(
+                                ui.tags.span("Average", class_="student-duration-label"),
+                                ui.tags.span(days(summary['average']), class_="student-duration-value"),
+                                class_="student-duration-stat student-duration-stat-primary",
+                            ),
+                            ui.tags.div(
+                                ui.tags.span("Median", class_="student-duration-label"),
+                                ui.tags.span(days(summary['median']), class_="student-duration-value"),
+                                class_="student-duration-stat",
+                            ),
+                            ui.tags.div(
+                                ui.tags.span("Range", class_="student-duration-label"),
+                                ui.tags.span(
+                                    f"{days(summary['minimum'])} - {days(summary['maximum'])}",
+                                    class_="student-duration-value",
+                                ),
+                                class_="student-duration-stat",
+                            ),
+                            class_="student-duration-summary",
+                        )
+
+            with ui.card(full_screen=True):
+                ui.card_header("Student Progression Timeline")
+
                 @render.ui
-                def student_stage_counts_chart():
-                    stages = [
-                        ('Orientation', 'orientation', STUDENT_COLOR),
-                        ('Permit', 'cdl_permit', STUDENT_NON_CDL_COLOR),
-                        ('DOT', 'dot_cert', '#2563EB'),
-                        ('Training', 'cdl_training', STUDENT_TRAINING_CDL_COLOR),
-                    ]
-                    counts = student_stage_counts()
-                    maximum = max(counts.values(), default=0)
-                    rows = [
-                        ui.tags.div(
-                            ui.tags.div(label, class_="student-workflow-label"),
+                def student_pipeline_velocity():
+                    metrics = student_pipeline_metrics()
+                    transitions = metrics['transitions']
+                    stage_counts = metrics['stage_counts']
+
+                    def transition_label(transition):
+                        if transition['completed'] == 0:
+                            return "No completed transitions"
+                        return (
+                            f"Avg {int(round(transition['average']))} days · "
+                            f"Range {transition['minimum']}-{transition['maximum']} days · "
+                            f"n={transition['completed']}"
+                        )
+
+                    flow = []
+                    for index, stage in enumerate(stage_counts):
+                        flow.append(
                             ui.tags.div(
                                 ui.tags.div(
-                                    style=f"width: {(counts[key] / maximum * 100 if maximum else 0):.1f}%; background-color: {color};",
-                                    class_="student-workflow-bar",
+                                    ui.tags.div(stage['label'], class_="student-pipeline-stage-name"),
+                                    ui.tags.div(
+                                        f"{stage['completed']} employees",
+                                        class_="student-pipeline-stage-count",
+                                    ),
+                                    class_="student-pipeline-stage-node",
                                 ),
-                                class_="student-workflow-track",
-                            ),
-                            ui.tags.span(str(counts[key]), class_="student-workflow-total"),
-                            class_="student-workflow-row",
+                                class_="student-pipeline-stage",
+                            )
                         )
-                        for label, key, color in stages
-                    ]
-                    return ui.tags.div(*rows, class_="student-workflow-list")
-
-            with ui.card():
-                ui.card_header("Orientation to CDL Timeline")
-                @render.ui
-                def student_duration_summary_ui():
-                    summary = student_duration_summary()
-                    if summary['completed'] == 0:
-                        return ui.tags.div("No completed orientation-to-CDL timelines", class_="student-duration-empty")
-
-                    def days(value):
-                        return f"{int(round(value))} days"
+                        if index < len(transitions):
+                            transition = transitions[index]
+                            flow.append(
+                                ui.tags.div(
+                                    ui.tags.div(class_="student-pipeline-arrow"),
+                                    ui.tags.div(
+                                        transition_label(transition),
+                                        class_="student-pipeline-transition-label",
+                                    ),
+                                    class_="student-pipeline-transition",
+                                )
+                            )
 
                     return ui.tags.div(
-                        ui.tags.div(
-                            ui.tags.span("Average", class_="student-duration-label"),
-                            ui.tags.span(days(summary['average']), class_="student-duration-value"),
-                        class_="student-duration-stat student-duration-stat-primary",
-                        ),
-                        ui.tags.div(
-                            ui.tags.span("Median", class_="student-duration-label"),
-                            ui.tags.span(days(summary['median']), class_="student-duration-value"),
-                            class_="student-duration-stat",
-                        ),
-                        ui.tags.div(
-                            ui.tags.span("Range", class_="student-duration-label"),
-                            ui.tags.span(
-                                f"{days(summary['minimum'])} - {days(summary['maximum'])}",
-                                class_="student-duration-value",
+                        # ui.tags.p(
+                        #     "Average time between completed milestones for active student employees.",
+                        #     class_="student-pipeline-subtitle",
+                        # ),
+                        ui.tags.div(*flow, class_="student-pipeline-flow"),
+                        # ui.tags.div(
+                        #     ui.tags.span("Pipeline view", class_="student-pipeline-footer-label"),
+                        #     ui.tags.span(
+                        #         f"{stage_counts[-1]['completed']} of {stage_counts[0]['completed']} active students have reached CDL",
+                        #         class_="student-pipeline-footer-value",
+                        #     ),
+                        #     class_="student-pipeline-footer",
+                        # ),
+                        class_="student-pipeline",
+                    )
+
+            with ui.layout_columns(col_widths=(6, 6), fill=False):
+                with ui.card(class_="dashboard-card"):
+                    ui.card_header("Transition Performance Table")
+
+                    @render.ui
+                    def student_transition_performance_table():
+                        table_df = student_transition_table_df()
+                        if table_df.empty:
+                            return ui.tags.div("No transition data available", class_="student-duration-empty")
+
+                        body_rows = []
+                        for row in table_df.to_dict('records'):
+                            band_class = {
+                                'Fast': 'student-badge-fast',
+                                'On Track': 'student-badge-on-track',
+                                'Watch': 'student-badge-watch',
+                                'No data': 'student-badge-neutral',
+                            }.get(row['speed_band'], 'student-badge-neutral')
+
+                            body_rows.append(
+                                ui.tags.tr(
+                                    ui.tags.td(row['transition']),
+                                    ui.tags.td(
+                                        f"{row['average_days']} days" if row['average_days'] is not None else 'N/A',
+                                        class_="student-transition-right",
+                                    ),
+                                    ui.tags.td(row['range'], class_="student-transition-right"),
+                                    ui.tags.td(str(row['completed']), class_="student-transition-right"),
+                                    # ui.tags.td(
+                                    #     ui.tags.span(row['speed_band'], class_=f"student-speed-badge {band_class}"),
+                                    #     class_="student-transition-right",
+                                    # ),
+                                )
+                            )
+
+                        return ui.tags.div(
+                            ui.tags.table(
+                                ui.tags.thead(
+                                    ui.tags.tr(
+                                        ui.tags.th("Transition"),
+                                        ui.tags.th("Avg Days", class_="student-transition-right"),
+                                        ui.tags.th("Range", class_="student-transition-right"),
+                                        ui.tags.th("Completed", class_="student-transition-right"),
+                                        # ui.tags.th("Status", class_="student-transition-right"),
+                                    )
+                                ),
+                                ui.tags.tbody(*body_rows),
+                                class_="student-transition-table",
                             ),
-                            class_="student-duration-stat",
-                        ),
-                        class_="student-duration-summary",
-                    )
+                            class_="student-transition-table-wrap",
+                        )
 
-        with ui.card(full_screen=True):
-            ui.card_header("Average Student Progression Timeline")
-            @render_widget
-            def student_progress_timeline_chart():
-                metrics = student_timeline_metrics()
-                if not metrics['labels']:
-                    fig = go.Figure()
-                    fig.add_annotation(text="No milestone data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
-                    fig.update_layout(height=320, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                    return fig
+                with ui.card(full_screen=True, class_="dashboard-card"):
+                    ui.card_header("Pipeline Bottleneck View")
 
-                labels = metrics['labels']
-                x_vals = metrics['days']
-                colors = [
-                    STUDENT_COLOR,
-                    STUDENT_NON_CDL_COLOR,
-                    '#2563EB',
-                    STUDENT_TRAINING_CDL_COLOR,
-                    STUDENT_CDL_COLOR,
-                ]
+                    @render_widget
+                    def student_pipeline_bottleneck_chart():
+                        table_df = student_transition_table_df()
+                        chart_df = table_df[table_df['average_days'].notna()].copy()
+                        if chart_df.empty:
+                            fig = go.Figure()
+                            fig.add_annotation(text="No completed transition durations", xref="paper", yref="paper", x=0.5, y=0.5)
+                            fig.update_layout(height=340)
+                            return fig
 
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=x_vals,
-                    y=[0, 0, 0, 0, 0],
-                    mode='lines+markers+text',
-                    line=dict(color='#334155', width=2),
-                    marker=dict(size=15, color=colors),
-                    text=[f"{int(round(v))}d" for v in x_vals],
-                    textposition=['top center', 'top center', 'top center', 'top center', 'top center'],
-                    hovertemplate='%{text}<extra></extra>',
-                ))
+                        chart_df['average_days'] = chart_df['average_days'].astype(int)
+                        chart_df = chart_df.sort_values('average_days', ascending=True)
+                        bar_colors = [
+                            '#0f766e' if value <= 7 else '#0369a1' if value <= 14 else '#b45309'
+                            for value in chart_df['average_days']
+                        ]
 
-                for value, label, color in zip(x_vals, labels, colors):
-                    fig.add_annotation(
-                        x=value,
-                        y=0,
-                        text=label,
-                        showarrow=False,
-                        yshift=18,
-                        font=dict(size=11, color='#0F172A'),
-                        bgcolor='rgba(255,255,255,0.8)',
-                        bordercolor=color,
-                        borderwidth=1,
-                        align='center',
-                    )
+                        fig = go.Figure(
+                            go.Bar(
+                                x=chart_df['average_days'],
+                                y=chart_df['transition'],
+                                orientation='h',
+                                marker_color=bar_colors,
+                                text=[f"{value} days" for value in chart_df['average_days']],
+                                textposition='outside',
+                                hovertemplate=(
+                                    '<b>%{y}</b><br>'
+                                    'Average: %{x} days<br>'
+                                    '<extra></extra>'
+                                ),
+                            )
+                        )
 
-                if metrics['deadline_days'] is not None:
-                    fig.add_vline(
-                        x=metrics['deadline_days'],
-                        line_dash='dash',
-                        line_color='#DC2626',
-                        annotation_text='Permit deadline',
-                        annotation_position='top left',
-                    )
+                        fig.update_layout(
+                            margin=dict(l=10, r=30, t=10, b=30),
+                            xaxis_title='Average days',
+                            yaxis_title=None,
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            height=360,
+                        )
+                        fig.update_xaxes(rangemode='tozero', gridcolor='#e2e8f0')
+                        fig.update_yaxes(automargin=True)
+                        return fig
 
-                fig.update_layout(
-                    title='Average days by milestone',
-                    template='plotly_white',
-                    margin=dict(l=20, r=20, t=46, b=20),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    height=360,
-                    showlegend=False,
-                    xaxis_title='Days from orientation',
-                    yaxis=dict(showgrid=False, zeroline=False, visible=False),
-                    font=dict(size=12, color='#334155'),
-                )
-
-                if metrics['total_days'] > 0:
-                    fig.update_xaxes(range=[0, max(metrics['total_days'] * 1.25, 30)])
-
-                return fig
+            
