@@ -272,6 +272,9 @@ def student_trends_tab(input, output, session, student_trends_df: pd.DataFrame):
 
             with ui.tags.div(class_="student-trends-scroll"):
                 with ui.layout_column_wrap(fill=False):
+
+                    ui.p('Under Construction')
+
                     # with ui.value_box(showcase=icon_svg("user-graduate").add_style(f"fill: {STUDENT_COLOR} !important;")):
                     #     "Active Students"
                     #     @render.ui
