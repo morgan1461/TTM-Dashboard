@@ -14,6 +14,97 @@ from colors import (
 )
 
 
+def compute_student_timeline_metrics(df: pd.DataFrame) -> dict:
+    if df.empty:
+        return {
+            'labels': [],
+            'days': [],
+            'intervals': {},
+            'deadline_days': None,
+            'total_days': 0,
+        }
+
+    for col in [
+        'orientation_date',
+        'student_permit_deadline',
+        'student_cdl_permit_date',
+        'dot_cert',
+        'cdl_training_start_date',
+        'student_cdl_date',
+    ]:
+        if col not in df.columns:
+            df = df.copy()
+            df[col] = pd.NaT
+
+    full_timeline = df.dropna(
+        subset=['orientation_date', 'student_cdl_permit_date', 'dot_cert', 'cdl_training_start_date', 'student_cdl_date']
+    ).copy()
+    if full_timeline.empty:
+        return {
+            'labels': [],
+            'days': [],
+            'intervals': {},
+            'deadline_days': None,
+            'total_days': 0,
+        }
+
+    full_timeline['orientation_to_permit'] = (
+        full_timeline['student_cdl_permit_date'] - full_timeline['orientation_date']
+    ).dt.days
+    full_timeline['permit_to_dot'] = (
+        full_timeline['dot_cert'] - full_timeline['student_cdl_permit_date']
+    ).dt.days
+    full_timeline['dot_to_training'] = (
+        full_timeline['cdl_training_start_date'] - full_timeline['dot_cert']
+    ).dt.days
+    full_timeline['training_to_cdl'] = (
+        full_timeline['student_cdl_date'] - full_timeline['cdl_training_start_date']
+    ).dt.days
+    full_timeline['orientation_to_cdl'] = (
+        full_timeline['student_cdl_date'] - full_timeline['orientation_date']
+    ).dt.days
+
+    for interval_col in ['orientation_to_permit', 'permit_to_dot', 'dot_to_training', 'training_to_cdl', 'orientation_to_cdl']:
+        full_timeline[interval_col] = full_timeline[interval_col].where(full_timeline[interval_col] >= 0)
+
+    intervals = {
+        'orientation_to_permit': full_timeline['orientation_to_permit'].mean(),
+        'permit_to_dot': full_timeline['permit_to_dot'].mean(),
+        'dot_to_training': full_timeline['dot_to_training'].mean(),
+        'training_to_cdl': full_timeline['training_to_cdl'].mean(),
+    }
+
+    total = full_timeline['orientation_to_cdl'].mean()
+
+    deadline_series = df.dropna(subset=['orientation_date', 'student_permit_deadline'])
+    deadline_days = None
+    if not deadline_series.empty:
+        deadline_days = (deadline_series['student_permit_deadline'] - deadline_series['orientation_date']).dt.days.mean()
+
+    labels = [
+        'Orientation',
+        'CDL Permit',
+        'DOT Cert',
+        'CDL Training',
+        'CDL',
+    ]
+    days = [
+        0,
+        intervals['orientation_to_permit'],
+        intervals['orientation_to_permit'] + intervals['permit_to_dot'],
+        intervals['orientation_to_permit'] + intervals['permit_to_dot'] + intervals['dot_to_training'],
+        total,
+    ]
+
+    return {
+        'labels': labels,
+        'days': days,
+        'intervals': intervals,
+        'deadline_days': deadline_days,
+        'total_days': total,
+    }
+
+
 @module
 def student_trends_tab(input, output, session, student_trends_df: pd.DataFrame):
     with ui.nav_panel("Student Trends", icon=icon_svg("chart-simple")):
@@ -159,83 +250,7 @@ def student_trends_tab(input, output, session, student_trends_df: pd.DataFrame):
 
             @reactive.calc
             def student_timeline_metrics():
-                df = student_snapshot_df()
-                if df.empty:
-                    return {
-                        'labels': [],
-                        'days': [],
-                        'intervals': {},
-                        'deadline_days': None,
-                        'total_days': 0,
-                    }
-
-                for col in [
-                    'orientation_date',
-                    'student_permit_deadline',
-                    'student_cdl_permit_date',
-                    'dot_cert',
-                    'cdl_training_start_date',
-                    'student_cdl_date',
-                ]:
-                    if col not in df.columns:
-                        df[col] = pd.NaT
-
-                valid = df.dropna(
-                    subset=['orientation_date', 'student_cdl_permit_date', 'cdl_training_start_date', 'student_cdl_date']
-                ).copy()
-                if valid.empty:
-                    return {
-                        'labels': [],
-                        'days': [],
-                        'intervals': {},
-                        'deadline_days': None,
-                        'total_days': 0,
-                    }
-
-                valid['orientation_to_permit'] = (valid['student_cdl_permit_date'] - valid['orientation_date']).dt.days
-                valid['permit_to_dot'] = (valid['dot_cert'] - valid['student_cdl_permit_date']).dt.days
-                valid['dot_to_training'] = (valid['cdl_training_start_date'] - valid['dot_cert']).dt.days
-                valid['training_to_cdl'] = (valid['student_cdl_date'] - valid['cdl_training_start_date']).dt.days
-
-                for interval_col in ['orientation_to_permit', 'permit_to_dot', 'dot_to_training', 'training_to_cdl']:
-                    valid[interval_col] = valid[interval_col].where(valid[interval_col] >= 0)
-
-                intervals = {
-                    'orientation_to_permit': valid['orientation_to_permit'].mean(),
-                    'permit_to_dot': valid['permit_to_dot'].mean(),
-                    'dot_to_training': valid['dot_to_training'].mean(),
-                    'training_to_cdl': valid['training_to_cdl'].mean(),
-                }
-
-                total = sum(v for v in intervals.values() if pd.notna(v))
-
-                deadline_series = df.dropna(subset=['orientation_date', 'student_permit_deadline'])
-                deadline_days = None
-                if not deadline_series.empty:
-                    deadline_days = (deadline_series['student_permit_deadline'] - deadline_series['orientation_date']).dt.days.mean()
-
-                labels = [
-                    'Orientation',
-                    'CDL Permit',
-                    'DOT Cert',
-                    'CDL Training',
-                    'CDL',
-                ]
-                days = [
-                    0,
-                    intervals['orientation_to_permit'],
-                    intervals['orientation_to_permit'] + intervals['permit_to_dot'],
-                    intervals['orientation_to_permit'] + intervals['permit_to_dot'] + intervals['dot_to_training'],
-                    total,
-                ]
-
-                return {
-                    'labels': labels,
-                    'days': days,
-                    'intervals': intervals,
-                    'deadline_days': deadline_days,
-                    'total_days': total,
-                }
+                return compute_student_timeline_metrics(student_snapshot_df())
 
             @reactive.calc
             def student_transition_table_df():
