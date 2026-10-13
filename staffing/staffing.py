@@ -3,6 +3,10 @@ import pandas as pd
 import glob
 import os
 from datetime import date
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from database.staffing_db import replace_snapshot
 from student_mapping import student_map, inactive_students
 
 # Paths:
@@ -322,30 +326,34 @@ def clean_merged_student_df(df):
 # Load functions
 # -------------------------------
 
-def save_data(df, is_full_time=False, is_part_time=False, is_student=False, data_repo_path=STAFFING_DATA_REPOSITORY_PATH, date=date.today()):
-    '''Save the data to the central repository containing the staffing data for the dashboard
-    
+def save_data(df, is_full_time=False, is_part_time=False, is_student=False, date=date.today(), db_path=None):
+    '''Save the data to the staffing SQL database (idempotent per date and employee type)
+
+    Re-running for the same date replaces that snapshot rather than duplicating it.
+
     Args:
         df (pd.DataFrame): The final cleaned and saved df
-        is_full_time (boolean): Save to full time
-        is_part_time (boolean): Save to part time
-        is_student (boolean): Save to student
-        data_repo_path (string): The path to the central repository containing staffing data for the dashboard
-        date (datetime.date): The date the data is pulled, default is today
+        is_full_time (boolean): Save as full time
+        is_part_time (boolean): Save as part time
+        is_student (boolean): Save as student
+        date (datetime.date): The snapshot date, default is today
+        db_path (str): Optional database path override
     Returns:
-        None
+        int: Number of rows written
     '''
-    # NOTE: Add conditional checking to ensure not "{double booked"
     if is_full_time:
-        df.to_csv(f'{data_repo_path}full_time/{str(date)}_full_time.csv', index=False)
+        employee_type = 'full_time'
     elif is_part_time:
-        df.to_csv(f'{data_repo_path}part_time/{str(date)}_part_time.csv', index=False)
+        employee_type = 'part_time'
     elif is_student:
-        df.to_csv(f'{data_repo_path}student/{str(date)}_student.csv', index=False)
+        employee_type = 'student'
     else:
         print('Failure: ensure that at least one bool expression is checked.')
+        return 0
 
-    return None
+    df = df.copy()
+    df['date'] = pd.to_datetime(date)
+    return replace_snapshot(df, employee_type, date, db_path=db_path)
 
 # -------------------------------
 # Student Staffing Trends functions
@@ -402,7 +410,7 @@ if __name__ == "__main__":
     # print(cleaned_merged_student_df.shape)
 
     # STEP 3: Load the data to the centralized repo
-    # save_data(full_time_df, is_full_time=True, date=DATE)
+    # save_data(full_time_df, is_full_time=True, date=DATE)  # writes to the SQL database
     # save_data(part_time_df, is_part_time=True, date=DATE)
     # save_data(cleaned_merged_student_df, is_student=True, date=DATE)
     # print("Data saved to central repository with date: " + str(DATE))

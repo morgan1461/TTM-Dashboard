@@ -24,6 +24,8 @@ TTM-Dashboard/
 │   ├── shared.py               # Module to trigger to pull each new data set
 │   └── styles.css              # styling
 │
+├── 📁 database/                # Local SQLite backend (staffing_db.py)
+│
 ├── 📁 staffing/                # Staffing data 
 │   ├── staffing.py             # Pull data and save to central repository
 │   └── requirements.txt  
@@ -54,6 +56,10 @@ K:/AP/TTM/Data/+ Data Repository/Dashboard/
 |
 
 ```
+
+### Staffing SQL database
+
+Staffing data is stored in a local SQLite database (`data/ttm_dashboard.db`, override with the `TTM_DB_PATH` env var) in the table `staffing_snapshots`, keyed by `(snapshot_date, employee_type, employee_id)` so reloads never duplicate rows. `staffing.save_data` replaces the snapshot for a given date/type; the dashboard reads from the database. On first run with an empty database, `dashboard/shared.py` imports any legacy `full_time/`, `part_time/`, `student/` CSVs.
 
 ---
 

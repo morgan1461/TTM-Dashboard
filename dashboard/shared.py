@@ -1,6 +1,10 @@
 import re
+import sys
 from pathlib import Path
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from database.staffing_db import load_staffing, upsert_staffing
 
 DATA_REPO = Path("K:/AP/TTM/Data/+ Data Repository/Dashboard/")
 STAFFING_DATA_DIR = DATA_REPO / "Staffing" / "dashboard_data"
@@ -121,16 +125,34 @@ def load_directory(directory: Path) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-# Load individual directories
-full_time_df = load_directory(FULL_TIME_DIR)
-full_time_df['employee_type'] = 'full_time'  # Ensure employee_type is set for full-time data
-part_time_df = load_directory(PART_TIME_DIR)
-part_time_df['employee_type'] = 'part_time'  # Ensure employee_type is set for part-time data
-student_df = load_directory(STUDENT_DIR)
-student_df['employee_type'] = 'student'  # Ensure employee_type is set for student data
+def _legacy_csv_frames() -> dict:
+    """Read the legacy per-day CSV directories, keyed by employee type."""
+    return {
+        "full_time": load_directory(FULL_TIME_DIR),
+        "part_time": load_directory(PART_TIME_DIR),
+        "student": load_directory(STUDENT_DIR),
+    }
 
-# Combined dataset for dashboard app
-staffing_df = pd.concat([full_time_df, part_time_df, student_df], ignore_index=True)
+
+def migrate_legacy_csvs() -> int:
+    """One-time import of the legacy CSV directories into the SQL database.
+    Safe to re-run: rows are upserted on (date, type, id)."""
+    total = 0
+    for emp_type, frame in _legacy_csv_frames().items():
+        if frame.empty:
+            continue
+        try:
+            total += upsert_staffing(frame, employee_type=emp_type)
+        except ValueError as err:
+            print(f"Warning: could not import legacy {emp_type} data: {err}")
+    return total
+
+
+# Staffing data is served from the SQL database; seed it from legacy CSVs on first run.
+staffing_df = load_staffing()
+if staffing_df.empty:
+    if migrate_legacy_csvs():
+        staffing_df = load_staffing()
 
 
 # student trends path

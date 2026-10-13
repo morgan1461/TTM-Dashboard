@@ -227,3 +227,5 @@ staffing/cleaned_workday_report.csv
 staffing/merge_test.csv
 staffing/merge_test_1/
 staffing/TEST_2026-08-17.csv
+# Local SQL database
+data/*.db*
