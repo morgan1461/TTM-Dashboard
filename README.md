@@ -61,6 +61,16 @@ K:/AP/TTM/Data/+ Data Repository/Dashboard/
 
 Staffing data is stored in a local SQLite database (`data/ttm_dashboard.db`, override with the `TTM_DB_PATH` env var) in the table `staffing_snapshots`, keyed by `(snapshot_date, employee_type, employee_id)` so reloads never duplicate rows. `staffing.save_data` replaces the snapshot for a given date/type; the dashboard reads from the database. On first run with an empty database, `dashboard/shared.py` imports any legacy `full_time/`, `part_time/`, `student/` CSVs.
 
+#### Biweekly employee update
+
+`staffing/update_employees.py` takes the Workday Current Worker Detail report and the Termination report and updates the `employees` table (one row per employee ID: `employee_type`, `last_name`, `first_name`, `hire_date`, `termination_date` (empty if active), termination category/reason, job info, and optional CDL fields). Employee ID is the only key used to match records between the reports.
+
+```
+python staffing/update_employees.py <current_worker.xlsx> <terminations.xlsx> <report_date YYYY-MM-DD> [training_staffing_master.xlsx]
+```
+
+Runs are idempotent. Rehired employees (hire date after their termination date) get their termination cleared. The active roster is also recorded in `staffing_snapshots` for the report date, which feeds the dashboard trend charts.
+
 ---
 
 ### 1-Dashboard-Module

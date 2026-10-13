@@ -41,6 +41,30 @@ CREATE TABLE IF NOT EXISTS staffing_snapshots (
     PRIMARY KEY (snapshot_date, employee_type, employee_id)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS idx_staffing_date ON staffing_snapshots (snapshot_date);
+
+CREATE TABLE IF NOT EXISTS employees (
+    employee_id TEXT PRIMARY KEY,
+    employee_type TEXT NOT NULL CHECK (employee_type IN ('full_time','part_time','student')),
+    last_name TEXT,
+    first_name TEXT,
+    full_name TEXT,
+    hire_date TEXT,
+    termination_date TEXT,
+    termination_category TEXT,
+    termination_reason TEXT,
+    job_family TEXT,
+    job_family_group TEXT,
+    job_code TEXT,
+    fte REAL,
+    driver_num REAL,
+    active REAL,
+    permit REAL,
+    cdl REAL,
+    cdl_training_start_date TEXT,
+    last_seen_date TEXT,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_employees_type ON employees (employee_type);
 """
 
 
